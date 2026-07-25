@@ -164,7 +164,6 @@ namespace ZsuTools
 
                 //Add row for entry
                 var entryRow = table.Rows.Add();
-                entryRow.Cells[ 1 ].Range.Text = itemIndex.ToString();
                 entryRow.Cells[ 2 ].Range.Text = tabelPosition.Position?.Name ?? "Посада не знайдена";
                 entryRow.Cells[ 3 ].Range.Text = tabelPosition.Tabel.Rank;
                 entryRow.Cells[ 4 ].Range.Text = tabelPosition.Tabel.FullName;
@@ -231,6 +230,41 @@ namespace ZsuTools
                 onUpdate?.Invoke("Generating money report...");
             }
 
+            // Add autonumeration to 1st column but skip merged subheaders lines
+            // Отримуем шаблон нумерації
+            ListTemplate template = reportDoc.Application.ListGalleries[WdListGalleryType.wdNumberGallery].ListTemplates[1];
+            template.ListLevels[1].NumberFormat = "%1";
+            template.ListLevels[1].TrailingCharacter = WdTrailingCharacter.wdTrailingNone;
+            template.ListLevels[1].Alignment = WdListLevelAlignment.wdListLevelAlignLeft;
+            template.ListLevels[1].NumberPosition = 0;
+            template.ListLevels[1].TextPosition = 0;
+
+            var isFirstItem = true;
+            for (int rowIndex = 2; rowIndex <= table.Rows.Count; rowIndex++)
+            {
+                var currentRow = table.Rows[rowIndex];
+                
+                // Skip if this is a subheader row 
+                if (subheaderRows.Any( r => r.Index == currentRow.Index ))
+                    continue;
+
+                var firstCell = currentRow.Cells[1];
+                
+                // For normal data rows, add the number to first column
+                firstCell.Range.ListFormat.ApplyListTemplateWithLevel(
+                    ListTemplate: template,
+                    ContinuePreviousList: !isFirstItem,
+                    ApplyTo: WdListApplyTo.wdListApplyToWholeList
+                );
+                isFirstItem = false;
+                
+                // Налаштування форматування першої колонки
+                firstCell.Range.ParagraphFormat.Alignment = WdParagraphAlignment.wdAlignParagraphCenter;
+                firstCell.Range.ParagraphFormat.LeftIndent = 0;
+                firstCell.Range.ParagraphFormat.RightIndent = 0;
+                firstCell.Range.ParagraphFormat.FirstLineIndent = 0;
+            }
+            
             // Merge cells in subheader rows after table population is complete
             foreach ( var subheaderRow in subheaderRows )
             {
