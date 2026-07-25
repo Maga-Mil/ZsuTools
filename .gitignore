@@ -55,3 +55,19 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# IDEs and Tools (Visual Studio, Rider, ReSharper)
+.vs/
+.idea/
+*.sln.iml
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ReSharper / Rider cache
+_ReSharper.Caches/
+_ReSharper.*/
+
+# NuGet Packages Directory (Old project format)
+packages/
