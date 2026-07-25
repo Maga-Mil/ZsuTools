@@ -13,7 +13,7 @@ namespace ZsuTools
     {
         private IRibbonUI _ribbon;
 
-        // Return the ribbon XML for Excel to render
+        // Return the ribbon XML for Excel to render.
         public override string GetCustomUI( string ribbonId )
         {
             var customUI =  @"<customUI xmlns='http://schemas.microsoft.com/office/2009/07/customui'>
