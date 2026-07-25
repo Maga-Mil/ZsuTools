@@ -76,16 +76,16 @@
     <Compile Include="GenerateTabel\SZParser.cs" />
     <Compile Include="GenerateTabel\RankPerson.cs" />
     <Compile Include="GenerateTabel\ResultTableGenerator.cs" />
-    <Compile Include="GenerateTabel\Utils.cs" />
     <Compile Include="GenerateTabel\СтройоваЗаписка.cs" />
     <Compile Include="MoneyReportGenerator.cs" />
     <Compile Include="PositionEntry.cs" />
-    <Compile Include="Positions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Tabel.cs" />
     <Compile Include="TabelEntry.cs" />
+    <Compile Include="Tables\PositionsTable.cs" />
     <Compile Include="UDFs\CheckCellFunctions.cs" />
     <Compile Include="UDFs\TestUDF.cs" />
+    <Compile Include="Utils.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ZsuTools-AddIn.dna" />

@@ -4,18 +4,18 @@ using System.Runtime.InteropServices;
 using ExcelDna.Integration;
 using Microsoft.Office.Interop.Excel;
 
-namespace ZsuTools
+namespace ZsuTools.Tables
 {
 	/// <summary>
 	/// ШПО table
 	/// </summary>
-	public class Positions
+	public class PositionsTable
 	{
 		/// <summary>
 		/// Read positions table from the first worksheet whose name contains "ШПО".
 		/// Starts at A6 and for each row:
-		/// - If cell A is merged: remember the merged value as SubUnit.
-		/// - If cell A is not merged: build a PositionEntry from the row:
+		/// - If cell A has some text: remember the merged value as SubUnit.
+		/// - If cell A is an natural number - its and Position Index: build a PositionEntry from the row:
 		///     A - Index, B - Name, C - AuthorizedRank, D - MOS, F - Rank, G - FullName
 		/// Processing stops when a row has an empty (non-merged) column A.
 		/// Returns an empty list when workbook or sheet is not available.
@@ -63,48 +63,19 @@ namespace ZsuTools
 						// If we couldn't acquire cellA (unexpected), stop
 						if (cellA == null)
 							break;
-
-						// Check whether cell A is part of merged area (simplified)
-						bool isMerged = false;
-						try
+						
+						object cellAValue;
+						try { cellAValue = cellA.Value2; } catch { cellAValue = null; }
+						var isHeader = !IsPositionIndex(cellAValue, out int positionIndex);
+						
+						if (isHeader)
 						{
-							// MergeCells typically returns a bool; evaluate safely
-							isMerged = cellA.MergeCells is bool b && b;
-						}
-						catch
-						{
-							isMerged = false;
-						}
-
-						// Read raw value of A (if available)
-						object aValue = null;
-						try { aValue = cellA.Value2; } catch { aValue = null; }
-
-						// If not merged and truly empty -> stop processing
-						if (!isMerged && aValue == null)
-						{
-							break;
-						}
-
-						if (isMerged)
-						{
-							// merged row acts as SubUnit header
-							Range mergeArea = null;
-							try
-							{
-								mergeArea = cellA.MergeArea;
-								object mv = null;
-								try { mv = mergeArea.Cells[1, 1].Value2; } catch { mv = null; }
-								var subUnitValue = mv != null ? mv.ToString().Trim() : string.Empty;
-								currentSubUnit = ToSentenceCase(subUnitValue);
-							}
-							finally
-							{
-								if (mergeArea != null) { Marshal.ReleaseComObject(mergeArea); mergeArea = null; }
-							}
-
-							// continue to next row (merged rows are headers)
-							continue;
+							// Empty cell A = the end of table
+							if( cellAValue == null || (cellAValue is string cellAString && cellAString == string.Empty ))
+								break;
+							
+							var subUnitValue = cellAValue != null ? cellAValue.ToString().Trim() : string.Empty;
+							currentSubUnit = ToSentenceCase(subUnitValue);
 						}
 						else
 						{
@@ -112,15 +83,7 @@ namespace ZsuTools
 							var entry = new PositionEntry();
 
 							// Index (col A) - try numeric then fallback to parse
-							if (aValue is double da)
-								entry.Index = Convert.ToInt32(da);
-							else if (aValue is int ia)
-								entry.Index = ia;
-							else if (aValue != null && int.TryParse(aValue.ToString(), out int pi))
-								entry.Index = pi;
-							else
-								entry.Index = 0;
-
+							entry.Index = positionIndex;
 							entry.SubUnit = currentSubUnit ?? string.Empty;
 							entry.Name = cellB?.Value2 != null ? cellB.Value2.ToString().Trim() : string.Empty;
 							entry.AuthorizedRank = cellC?.Value2 != null ? cellC.Value2.ToString().Trim() : string.Empty;
@@ -168,6 +131,17 @@ namespace ZsuTools
 				return text;
 			
 			return char.ToUpper(text[0]) + text.Substring(1).ToLower();
+		}
+		
+		public static bool IsPositionIndex(object cellValue, out int result)
+		{
+			result = 0;
+
+			// Convert.ToString безпечно обробляє null і повертає string.Empty
+			string strValue = Convert.ToString(cellValue);
+
+			// Парсимо рядок і перевіряємо, що число більше за нуль (> 0)
+			return int.TryParse(strValue, out result) && result > 0;
 		}
 	}
 }

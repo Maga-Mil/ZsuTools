@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Office.Interop.Excel;
 using Microsoft.Office.Interop.Word;
+using ZsuTools.Tables;
 using Word = Microsoft.Office.Interop.Word;
 
 namespace ZsuTools
@@ -28,7 +29,7 @@ namespace ZsuTools
                         "MoneyReport", MessageBoxButtons.OK, MessageBoxIcon.Error );
                 return;
             }
-            var positions      = Positions.ReadPositionsTable( positionsSheet );
+            var positions      = PositionsTable.ReadPositionsTable( positionsSheet );
 
             // Read table (Табель)
             var tabelWorksheet = ExcelUtils.FindWorksheetByNameContains( activeWb, "табель" );

@@ -6,6 +6,9 @@ namespace ZsuTools
 {
     public static class Utils
     {
+        /// <summary>
+        /// Because we use .Net 4.8 instead if .Net Core
+        /// </summary>
         public static bool Contains(this String str, String substring, 
             StringComparison comp)
         {                            
@@ -77,5 +80,7 @@ namespace ZsuTools
                 return Color.Transparent;
             }
         }
+        
+        
     }
 }
