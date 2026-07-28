@@ -2,7 +2,11 @@
 <DnaLibrary Name="ZsuTools Add-In" RuntimeVersion="v4.0" xmlns="http://schemas.excel-dna.net/addin/2020/07/dnalibrary">
   <ExternalLibrary Path="ZsuTools.dll" ExplicitExports="false" LoadFromBytes="true" Pack="true" IncludePdb="false" />
   <Reference Path="ExcelDna.IntelliSense.dll" Pack="true" />
-  <!--
+  <Reference Path="Microsoft.Office.Interop.Word.dll" Pack="true" />
+  <Reference Path="Xceed.Document.NET.dll" Pack="true" />
+  <Reference Path="Xceed.Drawing.NET.dll" Pack="true" />
+  <Reference Path="Xceed.Words.NET.dll" Pack="true" />
+    <!--
        The RuntimeVersion attribute above allows the following settings:
        * RuntimeVersion="v4.0" - for .NET Framework 4.6.2 or higher
        * v6.0, v7.0, v8.0 etc. for .NET
