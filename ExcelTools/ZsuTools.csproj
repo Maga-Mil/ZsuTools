@@ -94,6 +94,7 @@
     <Compile Include="Tables\OOSTable.cs" />
     <Compile Include="Tables\PositionsTable.cs" />
     <Compile Include="UDFs\CheckCellFunctions.cs" />
+    <Compile Include="UDFs\StringFunctions.cs" />
     <Compile Include="UDFs\TestUDF.cs" />
     <Compile Include="Utils.cs" />
   </ItemGroup>
@@ -103,6 +104,12 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Properties\ExcelDna.Build.props" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NameCaseLib\NameCaseLib\NameCaseLib.csproj">
+      <Project>{584cfab6-3010-9499-2bfc-c0a7b8f70bc1}</Project>
+      <Name>NameCaseLib</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

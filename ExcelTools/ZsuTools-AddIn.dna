@@ -6,6 +6,7 @@
   <Reference Path="Xceed.Document.NET.dll" Pack="true" />
   <Reference Path="Xceed.Drawing.NET.dll" Pack="true" />
   <Reference Path="Xceed.Words.NET.dll" Pack="true" />
+  <Reference Path="NameCaseLib.dll" Pack="true" />
     <!--
        The RuntimeVersion attribute above allows the following settings:
        * RuntimeVersion="v4.0" - for .NET Framework 4.6.2 or higher

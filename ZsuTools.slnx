@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="ExcelTools/ZsuTools.csproj" Id="32311110-69e4-48ca-837a-ea5d9b002325" />
+  <Project Path="NameCaseLib/NameCaseLib/NameCaseLib.csproj" />
   <Project Path="Tests/Tests.csproj" />
 </Solution>
