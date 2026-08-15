@@ -130,6 +130,13 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <ExcelDna64BitAddInSuffix>64-debug</ExcelDna64BitAddInSuffix>
   </PropertyGroup>
+
+  <Target Name="SignDependenciesBeforePack" BeforeTargets="ExcelDnaPack">
+    <Message Importance="high" Text="Checking and signing unsigned DLLs before ExcelDnaPack..." />
+
+    <!-- Знаходимо всі непідписані DLL та підписуємо їх -->
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Get-ChildItem -Path '$(TargetDir)*.dll' | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid' } | ForEach-Object { Write-Host 'Signing:' $_.Name; &amp; 'c:\Program Files (x86)\Windows Kits\10\bin\10.0.28000.0\x64\signtool.exe' sign /a /s My /n 'MAGA Code Signer' /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $_.FullName }&quot;" />
+  </Target>
   
   <Target Name="SignExcelDnaPack" AfterTargets="ExcelDnaPack">
     <ItemGroup>
@@ -138,7 +145,7 @@
     </ItemGroup>
     <Message Importance="high" Text="Signing Excel-DNA packed XLLs for SAC compliance..." />
     <!-- Запускаємо signtool для кожного знайденого файлу -->
-    <Exec Command="&quot;c:\Program Files (x86)\Windows Kits\10\bin\10.0.28000.0\x64\signtool.exe&quot; sign /a /s My /n &quot;ZsuTools&quot; /fd SHA256 /t http://timestamp.digicert.com &quot;%(XllToSign.Identity)&quot;" />
+    <Exec Command="&quot;c:\Program Files (x86)\Windows Kits\10\bin\10.0.28000.0\x64\signtool.exe&quot; sign /a /s My /n &quot;MAGA Code Signer&quot; /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 &quot;%(XllToSign.Identity)&quot;" />
   </Target>
   
   
