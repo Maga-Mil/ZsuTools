@@ -24,7 +24,7 @@ namespace ZsuTools.Tables
                 throw new InvalidOperationException("Таблиця ООС не має даних");
 
             var items = new List<Item>();
-            for (int i = 6; i < lastRow.Row; i++)
+            for (int i = 6; i <= lastRow.Row; i++)
             {
                 //Mandatory fields
                 String rankValue = ws.Cells[i, 1].Value2?.ToString();

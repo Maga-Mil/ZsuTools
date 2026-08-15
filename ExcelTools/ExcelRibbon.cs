@@ -34,9 +34,9 @@ namespace ZsuTools
                            +
                            @"<group id='groupMain' label='ЄЖООС'>"
                            + "<button id='btnAddReward' label='Рапорт на додаткову винагороду' size='large' imageMso='InternationalCurrency' showImage='true' onAction='OnAddRewardClicked' />"
-#if DEBUG
+//#if DEBUG
                            + "<button id='btnPremReward' label='Рапорт на премію' size='large' imageMso='InternationalCurrency' showImage='true' onAction='OnPremRewardClicked' />"
-#endif
+//#endif
                            + "</group>"
                            +
                            @"<group id='groupStroyova' label='Стройова'>

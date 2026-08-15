@@ -137,6 +137,9 @@ namespace ZsuTools
             Excel.Range tableRange = sheet.Range[sheet.Cells[1, 1], sheet.Cells[totalRows, 2 + maxDay]];
             tableRange.Borders.LineStyle = Excel.XlLineStyle.xlContinuous;
             tableRange.Borders.Weight = Excel.XlBorderWeight.xlThin;
+            //Set font and size
+            tableRange.Font.Name = "Times New Roman";
+            tableRange.Font.Size = 14;
 
             // Колонки з днями вирівнюємо по центру
             Excel.Range daysDataRange = sheet.Range[sheet.Cells[2, 3], sheet.Cells[totalRows, 2 + maxDay]];
