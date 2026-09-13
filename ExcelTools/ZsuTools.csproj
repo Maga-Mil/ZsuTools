@@ -93,6 +93,7 @@
     <Compile Include="TabelEntry.cs" />
     <Compile Include="Tables\OOSTable.cs" />
     <Compile Include="Tables\PositionsTable.cs" />
+    <Compile Include="Tables\TabelZaluchenosti.cs" />
     <Compile Include="UDFs\CheckCellFunctions.cs" />
     <Compile Include="UDFs\StringFunctions.cs" />
     <Compile Include="UDFs\TestUDF.cs" />

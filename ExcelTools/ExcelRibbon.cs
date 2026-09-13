@@ -40,7 +40,7 @@ namespace ZsuTools
                            + "</group>"
                            +
                            @"<group id='groupStroyova' label='Стройова'>
-          <button id='btnGetTabelFromStroyovaBatch' label='Отримати табель зі Стройової Записки (пакетно)' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelFromStroyovaBatchClicked' />
+                                <button id='btnGetTabelFromStroyovaBatch' label='Отримати табель зі Стройової Записки (пакетно)' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelFromStroyovaBatchClicked' />
 "
 // #if DEBUG
 //                    + 
@@ -48,7 +48,10 @@ namespace ZsuTools
 // #endif
                            +
                            @"</group>
-      </tab>
+                             <group id='tabelZaluchenosti' label='Табель залученості'>
+                                <button id='btnTabelZaluchenosti' label='Читати Табель залученості' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelZaluchenostiClicked' />
+                             </group>
+                           </tab>
     </tabs>
   </ribbon>
 </customUI>";
@@ -56,7 +59,7 @@ namespace ZsuTools
             return customUI;
         }
 
-        // Called when the ribbon is loaded by Excel
+        // Called when Excel loads the ribbon
         public void OnLoad(IRibbonUI ribbonUi)
         {
             _ribbon = ribbonUi;
@@ -149,7 +152,7 @@ namespace ZsuTools
                 }
             }
 
-            MessageBox.Show($"Не можу знайти таблицю ООС.", "ZSUTools", MessageBoxButtons.OK,
+            MessageBox.Show(ExcelWindow.Instance, $"Не можу знайти таблицю ООС.", "ZSUTools", MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
         }
 
@@ -170,7 +173,7 @@ namespace ZsuTools
             }
             catch (Exception e)
             {
-                MessageBox.Show($"Error catched, money report is discarded. {e}", "MoneyReport", MessageBoxButtons.OK,
+                MessageBox.Show(ExcelWindow.Instance, $"Error catched, money report is discarded. {e}", "MoneyReport", MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
             finally
@@ -192,7 +195,7 @@ namespace ZsuTools
             }
             catch (Exception e)
             {
-                MessageBox.Show($"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
+                MessageBox.Show(ExcelWindow.Instance, $"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
                     "Стройова записка", MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
@@ -213,13 +216,13 @@ namespace ZsuTools
 
                 var batchResult = BatchProcessor.ProcessMonthlyFiles();
                 ResultTableGenerator.GenerateSummaryTable(batchResult);
-                MessageBox.Show(
+                MessageBox.Show(ExcelWindow.Instance,
                     $"Табель зі Стройової Записки сформовано успішно, оброблено {batchResult.Count} файлів.",
                     "Стройова записка", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception e)
             {
-                MessageBox.Show($"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
+                MessageBox.Show(ExcelWindow.Instance, $"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
                     "Стройова записка", MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
@@ -230,6 +233,36 @@ namespace ZsuTools
             }
         }
 
+        public void OnGetTabelZaluchenostiClicked(IRibbonControl control)
+        {
+            Application excelApp = (Application)ExcelDnaUtil.Application;
+            try
+            {
+                var workBook = excelApp.ActiveWorkbook;
+                if(workBook == null)
+                {
+                    MessageBox.Show(ExcelWindow.Instance, "Не завантажено Табель Залученості.", "Табель залученості");
+                    return;
+                }
+                var ws = ExcelUtils.FindWorksheetByNameContains(workBook, "Табелювання");
+                if(ws == null)
+                {
+                    MessageBox.Show(ExcelWindow.Instance, "Не знайдено таблицю 'Табелювання', це не схоже на Табель Залученості", "Табель залученості");
+                    return;
+                }
+                var tz = new TabelZaluchenosti(workBook);
+                
+                MessageBox.Show(ExcelWindow.Instance, $"Successfully parsed {tz.Records.Count} records!", "Табель залученості");
+                
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show(ExcelWindow.Instance, $"Помилка при завантаженні табеля залученості: {e}", "Табель залученості");
+            }
+            
+        }
+            
+            
 
         private void UpdateStatus(Application excelApp, string operationName)
         {
@@ -238,5 +271,19 @@ namespace ZsuTools
 
         private static readonly string[] UpdateStates = new[] { "-", "\\", "|", "/" };
         private int _updateStateIndex = 0;
+    }
+    
+    /// <summary>
+    /// Wraps Excel's main HWND handle into an IWin32Window implementation
+    /// so WinForms dialogs and MessageBoxes bind correctly as modal windows to Excel.
+    /// </summary>
+    public class ExcelWindow : IWin32Window
+    {
+        public IntPtr Handle => ExcelDnaUtil.WindowHandle;
+
+        /// <summary>
+        /// Gets a reusable singleton instance of the Excel main window wrapper.
+        /// </summary>
+        public static ExcelWindow Instance { get; } = new ExcelWindow();
     }
 }

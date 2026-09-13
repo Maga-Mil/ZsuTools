@@ -32,7 +32,7 @@ namespace ZsuTools.Tables
                     continue;
                 
                 String pibValue = ws.Cells[i, 2].Value2?.ToString();
-                if( string.IsNullOrEmpty(rankValue) )
+                if( string.IsNullOrEmpty(pibValue) )
                     continue;
 
                 var rank = new Rank(rankValue);
