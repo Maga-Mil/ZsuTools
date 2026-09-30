@@ -98,6 +98,9 @@ namespace ZsuTools
                 doc.Content.InsertParagraphAfter();
                 doc.Content.InsertAfter( "30k" );
                 CreateMoneyReportForState( doc, tabelPositions, reportDate, "+", onUpdate );
+                doc.Content.InsertParagraphAfter();
+                doc.Content.InsertAfter( "10k" );
+                CreateMoneyReportForState( doc, tabelPositions, reportDate, "-", onUpdate );
 
                 MessageBox.Show( "Успішно створено таблиці грошового рапорта в окремий документ Word. Додайте текст рапорта та збережіть документ.",
                         "MoneyReport", MessageBoxButtons.OK, MessageBoxIcon.Information );
