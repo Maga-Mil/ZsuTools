@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -251,8 +252,59 @@ namespace ZsuTools
                     return;
                 }
                 var tz = new TabelZaluchenosti(workBook);
-                
-                MessageBox.Show(ExcelWindow.Instance, $"Successfully parsed {tz.Records.Count} records!", "Табель залученості");
+
+                using (OpenFileDialog openFileDialog = new OpenFileDialog())
+                {
+                    openFileDialog.Filter = "Файли Excel (*.xlsx)|*.xlsx|Усі файли (*.*)|*.*";
+                    openFileDialog.Title = "Оберіть Стройову Записку, щоб скопіювати дані до Табеля Залученості";
+
+                    if (openFileDialog.ShowDialog() != DialogResult.OK)
+                    {
+                        return;
+                    }
+
+                    string selectedFilePath = openFileDialog.FileName;
+                    string directory = Path.GetDirectoryName(selectedFilePath);
+                    string fileName = Path.GetFileName(selectedFilePath);
+                    
+                    var szWb = excelApp.Workbooks.Open(selectedFilePath, ReadOnly: true);
+
+                    try
+                    {
+                        var szWs = szWb.Sheets[1] as Microsoft.Office.Interop.Excel.Worksheet;
+                        var sz = new StroyovaZapyska(szWs);
+
+                        // Some sanity checks
+                        if(tz.Items.Count != sz.Items.Count)
+                        {
+                            MessageBox.Show(ExcelWindow.Instance, $"Кількість записів у Табелі Залученості ({tz.Items.Count}) не збігається з кількістю записів у Стройовій Записці ({sz.Items.Count}). Операця буде зупинена.", "Табель залученості");
+                            return;
+                        }
+                        
+                        var mismatchedRecords = new List<string>();
+                        foreach (var tzItem in tz.Items)
+                        {
+                            var person = sz.Items.SingleOrDefault(r => r.Item1.FullName.Equals(tzItem.PersonFullName, StringComparison.InvariantCultureIgnoreCase));
+                            if(person == null)
+                            {
+                                mismatchedRecords.Add(tzItem.PersonFullName);
+                            }
+                        }
+                        
+                        if(mismatchedRecords.Count > 0)
+                        {
+                            MessageBox.Show(ExcelWindow.Instance, $"У Табелі Залученості присутні записи, які відсутні у Стройовій Записці:\n\r {String.Join(", ", mismatchedRecords)}. \n\rТреба виправити ПІБ у Стройовій Записці відповідно до Табеля Залученості. Операця буде зупинена.", "Табель залученості");
+                            return;
+                        }
+                    }
+                    finally
+                    {
+                        szWb.Close(false);
+                    }
+                    
+                }
+
+                MessageBox.Show(ExcelWindow.Instance, $"Successfully parsed {tz.Items.Count} records!", "Табель залученості");
                 
             }
             catch (Exception e)
