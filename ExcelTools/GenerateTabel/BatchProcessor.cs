@@ -67,18 +67,30 @@ namespace ZsuTools
                         // Форматуємо день як "01", "02" і т.д.
                         string dayStr = day.ToString("D2");
                         string targetFileName = string.Format("{0}{1}.{2}.{3}.xlsx", prefix, dayStr, monthStr, yearStr);
-                        string targetFilePath = Path.Combine(directory, targetFileName);
+                        string targetFileMask = string.Format("{0}{1}.{2}.{3}*.xlsx", prefix, dayStr, monthStr, yearStr);
+                        string targetFilePath = null;
 
-                        // Якщо місяць неповний або дня немає — просто пропускаємо його
-                        if (!File.Exists(targetFilePath))
+                        // Перевіряємо наявність файлу
+                        var candidates = Directory.GetFiles(directory, targetFileMask);
+                        if (candidates.Length > 0)
                         {
-                            continue;
+                            foreach (var candidate in candidates)
+                            {
+                                if(Path.GetFileName(candidate.Trim()).Equals(targetFileName, StringComparison.InvariantCultureIgnoreCase))
+                                {
+                                    targetFilePath = candidate;
+                                    break;
+                                }
+                            }
                         }
+                        
+                        if(targetFilePath == null)
+                            continue;
 
                         Excel.Workbook workbook = null;
                         try
                         {
-                            // Відкриваємо файл (ReadOnly = true, щоб нічого випадково не заблокувати)
+                            // Відкриваємо файл (ReadOnly = true, щоб нічого випадково не змінити)
                             workbook = excelApp.Workbooks.Open(targetFilePath, ReadOnly: true);
 
                             if (workbook.Worksheets.Count > 0)
