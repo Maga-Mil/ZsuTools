@@ -4,8 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using Excel = Microsoft.Office.Interop.Excel;
-using ExcelDna.Integration;
+using ZsuTools.GenerateTabel;
 
 namespace ZsuTools
 {
@@ -47,15 +46,6 @@ namespace ZsuTools
                 string monthStr = match.Groups["month"].Value;
                 string yearStr = match.Groups["year"].Value;
 
-                // Отримуємо доступ до головного COM-об'єкта Excel через Excel-DNA
-                Excel.Application excelApp = (Excel.Application)ExcelDnaUtil.Application;
-
-                // Вимикаємо оновлення екрану та сповіщення для прискорення роботи
-                bool previousScreenUpdating = excelApp.ScreenUpdating;
-                bool previousDisplayAlerts = excelApp.DisplayAlerts;
-                excelApp.ScreenUpdating = false;
-                excelApp.DisplayAlerts = false;
-
                 // Сюди збираємо результати: Ключ — день місяця, Значення — список tuples людей
                 var monthlyResults = new Dictionary<int, List<Tuple<RankPerson, SZState, Color>>>();
 
@@ -75,42 +65,17 @@ namespace ZsuTools
                             continue;
                         }
 
-                        Excel.Workbook workbook = null;
                         try
                         {
-                            // Відкриваємо файл (ReadOnly = true, щоб нічого випадково не заблокувати)
-                            workbook = excelApp.Workbooks.Open(targetFilePath, ReadOnly: true);
-
-                            if (workbook.Worksheets.Count > 0)
-                            {
-                                // Беремо перший worksheet (в Excel COM індексація починається з 1)
-                                Excel.Worksheet worksheet = (Excel.Worksheet)workbook.Worksheets[1];
-
-                                // Викликаємо ваш метод парсингу комірок
-                                var dayData = SZParser.ParseMilitaryData(worksheet);
-
-                                // Зберігаємо в загальний словник під номером дня
-                                monthlyResults.Add(day, dayData);
-                            }
+                            // ClosedXML читає файл напряму, без Excel Interop
+                            var stroyova = new СтройоваЗаписка(targetFilePath);
+                            monthlyResults.Add(day, stroyova.MilitaryData);
                         }
                         catch (Exception ex)
                         {
                             MessageBox.Show($"Помилка обробки файлу {targetFileName}. : {ex.Message}", "Помилка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
-                        finally
-                        {
-                            // Обов'язково закриваємо книгу без збереження змін
-                            if (workbook != null)
-                            {
-                                workbook.Close(SaveChanges: false);
-                                System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook);
-                            }
-                        }
                     }
-
-                    // Вмикаємо назад налаштування Excel
-                    excelApp.ScreenUpdating = previousScreenUpdating;
-                    excelApp.DisplayAlerts = previousDisplayAlerts;
 
                     // 4. Обробка фінального результату
                     //ProcessFinalResults(monthlyResults);
@@ -118,8 +83,6 @@ namespace ZsuTools
                 }
                 catch (Exception ex)
                 {
-                    excelApp.ScreenUpdating = previousScreenUpdating;
-                    excelApp.DisplayAlerts = previousDisplayAlerts;
                     MessageBox.Show("Помилка пакетної обробки: " + ex.Message);
                 }
             }

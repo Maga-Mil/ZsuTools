@@ -43,10 +43,10 @@ namespace ZsuTools
                            @"<group id='groupStroyova' label='Стройова'>
                                 <button id='btnGetTabelFromStroyovaBatch' label='Отримати табель зі Стройової Записки (пакетно)' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelFromStroyovaBatchClicked' />
 "
-// #if DEBUG
-//                    + 
-//         @"<button id='btnGetTabelFromStroyova' label='Отримати табель зі Стройової Записки' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelFromStroyovaClicked' />"
-// #endif
+#if DEBUG
+                   + 
+        @"<button id='btnGetTabelFromStroyova' label='Отримати табель зі Стройової Записки' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelFromStroyovaClicked' />"
+#endif
                            +
                            @"</group>
                              <group id='tabelZaluchenosti' label='Табель залученості'>
@@ -189,10 +189,34 @@ namespace ZsuTools
             Application excelApp = (Application)ExcelDnaUtil.Application;
             try
             {
-                var workBook = excelApp.ActiveWorkbook;
-                //excelApp.DisplayStatusBar = true;
+                //var stroyovaCOM = new СтройоваЗаписка(excelApp.ActiveWorkbook);
 
-                var stroyova = new СтройоваЗаписка(workBook);
+                // Читаємо Стройову Записку з файлу через ClosedXML (без Excel Interop)
+                using (OpenFileDialog openFileDialog = new OpenFileDialog())
+                {
+                    openFileDialog.Filter = "Файли Excel (*.xlsx)|*.xlsx|Усі файли (*.*)|*.*";
+                    openFileDialog.Title = "Оберіть файл Стройової Записки";
+
+                    if (openFileDialog.ShowDialog() != DialogResult.OK)
+                    {
+                        return;
+                    }
+
+                    var stroyova = new СтройоваЗаписка(openFileDialog.FileName);
+
+                    var byLocation = stroyova.MilitaryData
+                        .GroupBy(t => t.Item2.Location)
+                        .Select(g => $"{g.Key}: {g.Count()}");
+                    var sample = stroyova.MilitaryData
+                        .Take(5)
+                        .Select(t => $"{t.Item1.FullName} | {t.Item2.Location} | {t.Item3.Name}");
+
+                    MessageBox.Show(ExcelWindow.Instance,
+                        $"Прочитано записів: {stroyova.MilitaryData.Count}\n" +
+                        $"{string.Join("\n", byLocation)}\n\n" +
+                        $"Перші записи:\n{string.Join("\n", sample)}",
+                        "Стройова записка (ClosedXML)", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             }
             catch (Exception e)
             {

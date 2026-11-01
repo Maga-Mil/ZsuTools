@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using ClosedXML.Excel;
 using Microsoft.Office.Interop.Excel;
 
 namespace ZsuTools
@@ -93,6 +94,120 @@ namespace ZsuTools
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Версія парсера на ClosedXML (без Excel Interop). Логіка ідентична <see cref="ParseMilitaryData(Worksheet)"/>.
+        /// </summary>
+        public static List<Tuple<RankPerson, SZState, Color>> ParseMilitaryData(IXLWorksheet worksheet)
+        {
+            var result = new List<Tuple<RankPerson, SZState, Color>>();
+
+            int lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 0;
+            int currentRow = 1;
+            bool firstBlockFound = false;
+            bool secondBlockFound = false;
+
+            for (; currentRow <= lastRow; currentRow++)
+            {
+                var cellValue = GetMergedCellValue(worksheet.Cell(currentRow, 1));
+                if (cellValue.Contains("детально (відсутні)", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    firstBlockFound = true;
+                    currentRow += 2;
+                    break;
+                }
+            }
+
+            if (!firstBlockFound)
+            {
+                return result;
+            }
+
+            int secondBlockStartRow = -1;
+            for (int r = currentRow; r <= lastRow; r++)
+            {
+                var cellValue = GetMergedCellValue(worksheet.Cell(r, 1));
+                if (cellValue.Contains("бойове чергування", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    secondBlockStartRow = r;
+                    secondBlockFound = true;
+                    break;
+                }
+            }
+
+            int firstBlockEndRow = secondBlockFound ? secondBlockStartRow - 1 : lastRow;
+            for (; currentRow <= firstBlockEndRow; currentRow++)
+            {
+                string cellValue = GetMergedCellValue(worksheet.Cell(currentRow, 1));
+                ProcessRow(worksheet, currentRow, new SZState(LocationType.Відсутній, cellValue), result);
+            }
+
+            if (secondBlockFound)
+            {
+                currentRow = secondBlockStartRow + 1;
+                LocationType currentLocation = LocationType.БЧ;
+
+                for (; currentRow <= lastRow; currentRow++)
+                {
+                    string cellValue = GetMergedCellValue(worksheet.Cell(currentRow, 1));
+
+                    if (cellValue.Equals("ТИЛОВЕ ЗАБЕЗПЕЧЕННЯ", StringComparison.OrdinalIgnoreCase))
+                    {
+                        currentLocation = LocationType.РЗ;
+                    }
+
+                    if (cellValue.Equals("Разом", StringComparison.OrdinalIgnoreCase))
+                    {
+                        break;
+                    }
+
+                    ProcessRow(worksheet, currentRow, new SZState(currentLocation, cellValue), result);
+                }
+            }
+
+            return result;
+        }
+
+        private static void ProcessRow(IXLWorksheet worksheet, int row, SZState location,
+            List<Tuple<RankPerson, SZState, Color>> result)
+        {
+            for (int col = 3; col <= 5; col++)
+            {
+                var personCell = worksheet.Cell(row, col);
+                var personData = new RankPerson(personCell.GetString().Trim());
+
+                if (!string.IsNullOrEmpty(personData.FullName))
+                {
+                    result.Add(Tuple.Create(personData, location, GetCellFontColor(personCell)));
+                }
+            }
+        }
+
+        private static string GetMergedCellValue(IXLCell cell)
+        {
+            if (cell == null) return string.Empty;
+
+            if (cell.IsMerged())
+            {
+                cell = cell.MergedRange().FirstCell();
+            }
+
+            return cell.GetString().Trim();
+        }
+
+        private static Color GetCellFontColor(IXLCell cell)
+        {
+            try
+            {
+                var xlColor = cell.Style.Font.FontColor;
+                if (xlColor == null) return Color.Black;
+                return xlColor.Color;
+            }
+            catch
+            {
+                return Color.Black;
+            }
         }
 
         /// <summary>

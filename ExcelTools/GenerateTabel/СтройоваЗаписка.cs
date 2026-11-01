@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
+using ClosedXML.Excel;
 using Microsoft.Office.Interop.Excel;
 
 namespace ZsuTools.GenerateTabel
@@ -25,6 +27,49 @@ namespace ZsuTools.GenerateTabel
             var testResult = SZParser.ParseMilitaryData(worksheet);
 
             MilitaryData = testResult;
+        }
+
+        /// <summary>
+        /// Створює Стройову Записку з Excel файлу, використовуючи ClosedXML (без Excel Interop).
+        /// </summary>
+        public СтройоваЗаписка(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath))
+            {
+                throw new ArgumentException("Invalid file path provided.", nameof(filePath));
+            }
+
+            using (var workbook = new XLWorkbook(filePath))
+            {
+                MilitaryData = ParseWorkbook(workbook);
+            }
+        }
+
+        /// <summary>
+        /// Створює Стройову Записку з Stream Excel файлу, використовуючи ClosedXML (без Excel Interop).
+        /// </summary>
+        public СтройоваЗаписка(Stream stream)
+        {
+            if (stream == null)
+            {
+                throw new ArgumentException("Invalid stream provided.", nameof(stream));
+            }
+
+            using (var workbook = new XLWorkbook(stream))
+            {
+                MilitaryData = ParseWorkbook(workbook);
+            }
+        }
+
+        private static List<Tuple<RankPerson, SZState, Color>> ParseWorkbook(XLWorkbook workbook)
+        {
+            if (workbook.Worksheets.Count == 0)
+            {
+                throw new ArgumentException("Invalid workbook provided.");
+            }
+
+            // First worksheet is always Стройова Записка (ClosedXML worksheets are 1-based)
+            return SZParser.ParseMilitaryData(workbook.Worksheet(1));
         }
     }
 }
