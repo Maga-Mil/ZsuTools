@@ -179,7 +179,7 @@ namespace ZsuTools
 
                 if (!string.IsNullOrEmpty(personData.FullName))
                 {
-                    result.Add(Tuple.Create(personData, location, GetCellFontColor(personCell)));
+                    result.Add(Tuple.Create(personData, location, Utils.GetCellFontColor(personCell)));
                 }
             }
         }
@@ -194,20 +194,6 @@ namespace ZsuTools
             }
 
             return cell.GetString().Trim();
-        }
-
-        private static Color GetCellFontColor(IXLCell cell)
-        {
-            try
-            {
-                var xlColor = cell.Style.Font.FontColor;
-                if (xlColor == null) return Color.Black;
-                return xlColor.Color;
-            }
-            catch
-            {
-                return Color.Black;
-            }
         }
 
         /// <summary>
