@@ -9,7 +9,7 @@ namespace ZsuTools.Tables
 {
     public class TabelZaluchenosti
     {
-        public List<Item> Records { get; private set; } = new List<Item>();
+        public List<Item> Items { get; private set; } = new List<Item>();
 
         public JobValue.Registry Jobs { get; private set; }
         public PresenceValue.Registry Presence { get; private set; }
@@ -24,7 +24,7 @@ namespace ZsuTools.Tables
 
             var mainWorkSheet = ExcelUtils.FindWorksheetByNameContains(wb, "Табелювання");
             var items = ReadTableFromWorksheet(mainWorkSheet, Jobs, Presence);
-            Records.AddRange(items);
+            Items.AddRange(items);
         }
 
         /// <summary>

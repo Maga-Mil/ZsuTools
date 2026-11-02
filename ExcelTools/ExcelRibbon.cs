@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -8,7 +9,6 @@ using ExcelDna.Integration;
 using ExcelDna.Integration.CustomUI;
 using Xceed.Document.NET;
 using Xceed.Words.NET;
-using ZsuTools.GenerateTabel;
 using ZsuTools.Tables;
 using Application = Microsoft.Office.Interop.Excel.Application;
 
@@ -42,10 +42,10 @@ namespace ZsuTools
                            @"<group id='groupStroyova' label='Стройова'>
                                 <button id='btnGetTabelFromStroyovaBatch' label='Отримати табель зі Стройової Записки (пакетно)' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelFromStroyovaBatchClicked' />
 "
-// #if DEBUG
-//                    + 
-//         @"<button id='btnGetTabelFromStroyova' label='Отримати табель зі Стройової Записки' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelFromStroyovaClicked' />"
-// #endif
+#if DEBUG
+                   + 
+        @"<button id='btnGetTabelFromStroyova' label='Отримати табель зі Стройової Записки' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelFromStroyovaClicked' />"
+#endif
                            +
                            @"</group>
                              <group id='tabelZaluchenosti' label='Табель залученості'>
@@ -65,6 +65,10 @@ namespace ZsuTools
             _ribbon = ribbonUi;
         }
 
+        /// <summary>
+        /// Сгенерувати рапорт на премію у Word документі на основі таблиці ООС у активному ЄЖООС файлі.
+        /// </summary>
+        /// <param name="control"></param>
         public void OnPremRewardClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
@@ -156,6 +160,10 @@ namespace ZsuTools
                 MessageBoxIcon.Error);
         }
 
+        /// <summary>
+        /// Сгенерувати рапорт на додаткову винагороду у Word документі на основі табеля у активному ЄЖООС файлі.
+        /// </summary>
+        /// <param name="control"></param>
         public void OnAddRewardClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
@@ -183,15 +191,43 @@ namespace ZsuTools
             }
         }
 
+        /// <summary>
+        /// Отримати табель зі Стройової Записки у активному ЄЖООС файлі. Поки що це здебільшого тестовий код.
+        /// TODO Зробити заповнення Табеля ЄЖООС на основі Стройової Записки, а не просто вивід статистики у MessageBox.
+        /// </summary>
+        /// <param name="control"></param>
         public void OnGetTabelFromStroyovaClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
             try
             {
-                var workBook = excelApp.ActiveWorkbook;
-                //excelApp.DisplayStatusBar = true;
+                //var stroyovaCOM = new СтройоваЗаписка(excelApp.ActiveWorkbook);
 
-                var stroyova = new СтройоваЗаписка(workBook);
+                // Читаємо Стройову Записку з файлу через ClosedXML (без Excel Interop)
+                using (OpenFileDialog openFileDialog = new OpenFileDialog())
+                {
+                    openFileDialog.Filter = "Файли Excel (*.xlsx)|*.xlsx|Усі файли (*.*)|*.*";
+                    openFileDialog.Title = "Оберіть файл Стройової Записки";
+
+                    if (openFileDialog.ShowDialog() != DialogResult.OK)
+                    {
+                        return;
+                    }
+
+                    var stroyova = new StroyovaZapyska(openFileDialog.FileName);
+
+                    var byLocation = stroyova.Items
+                        .GroupBy(t => t.State.Location)
+                        .Select(g => $"{g.Key}: {g.Count()}");
+                    var sample = stroyova.Items
+                        .Select(t => $"{t.Person.FullName} | {t.State.Location} | {t.Color.Name}");
+
+                    MessageBox.Show(ExcelWindow.Instance,
+                        $"Прочитано записів: {stroyova.Items.Count}\n" +
+                        $"{string.Join("\n", byLocation)}\n\n" +
+                        $"Перші записи:\n{string.Join("\n", sample)}",
+                        "Стройова записка (ClosedXML)", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             }
             catch (Exception e)
             {
@@ -206,6 +242,11 @@ namespace ZsuTools
             }
         }
 
+        /// <summary>
+        /// Отримати табель зі Стройової Записки у активному ЄЖООС файлі, обробляючи всі файли місяця у папці.
+        /// Це не Табель ЄЖООС, а просто табличка схожа на Табель
+        /// </summary>
+        /// <param name="control"></param>
         public void OnGetTabelFromStroyovaBatchClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
@@ -233,6 +274,11 @@ namespace ZsuTools
             }
         }
 
+        /// <summary>
+        /// Тестове читання Табеля Залученості
+        /// TODO Заповнити Табель Залученості на основі Стройової Записки
+        /// </summary>
+        /// <param name="control"></param>
         public void OnGetTabelZaluchenostiClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
@@ -251,8 +297,58 @@ namespace ZsuTools
                     return;
                 }
                 var tz = new TabelZaluchenosti(workBook);
-                
-                MessageBox.Show(ExcelWindow.Instance, $"Successfully parsed {tz.Records.Count} records!", "Табель залученості");
+
+                using (OpenFileDialog openFileDialog = new OpenFileDialog())
+                {
+                    openFileDialog.Filter = "Файли Excel (*.xlsx)|*.xlsx|Усі файли (*.*)|*.*";
+                    openFileDialog.Title = "Оберіть Стройову Записку, щоб скопіювати дані до Табеля Залученості";
+
+                    if (openFileDialog.ShowDialog() != DialogResult.OK)
+                    {
+                        return;
+                    }
+
+                    string selectedFilePath = openFileDialog.FileName;
+                    string directory = Path.GetDirectoryName(selectedFilePath);
+                    string fileName = Path.GetFileName(selectedFilePath);
+                    
+                    var szWb = excelApp.Workbooks.Open(selectedFilePath, ReadOnly: true);
+
+                    try
+                    {
+                        var sz = new StroyovaZapyska(szWb);
+
+                        // Some sanity checks
+                        if(tz.Items.Count != sz.Items.Count)
+                        {
+                            MessageBox.Show(ExcelWindow.Instance, $"Кількість записів у Табелі Залученості ({tz.Items.Count}) не збігається з кількістю записів у Стройовій Записці ({sz.Items.Count}). Операця буде зупинена.", "Табель залученості");
+                            return;
+                        }
+                        
+                        var mismatchedRecords = new List<string>();
+                        foreach (var tzItem in tz.Items)
+                        {
+                            var person = sz.Items.SingleOrDefault(r => r.Person.FullName.Equals(tzItem.PersonFullName, StringComparison.InvariantCultureIgnoreCase));
+                            if(person == null)
+                            {
+                                mismatchedRecords.Add(tzItem.PersonFullName);
+                            }
+                        }
+                        
+                        if(mismatchedRecords.Count > 0)
+                        {
+                            MessageBox.Show(ExcelWindow.Instance, $"У Табелі Залученості присутні записи, які відсутні у Стройовій Записці:\n\r {String.Join(", ", mismatchedRecords)}. \n\rТреба виправити ПІБ у Стройовій Записці відповідно до Табеля Залученості. Операця буде зупинена.", "Табель залученості");
+                            return;
+                        }
+                    }
+                    finally
+                    {
+                        szWb.Close(false);
+                    }
+                    
+                }
+
+                MessageBox.Show(ExcelWindow.Instance, $"Successfully parsed {tz.Items.Count} records!", "Табель залученості");
                 
             }
             catch (Exception e)

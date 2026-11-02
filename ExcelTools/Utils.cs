@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using ClosedXML.Excel;
 using Microsoft.Office.Interop.Excel;
 
 namespace ZsuTools
@@ -59,6 +60,68 @@ namespace ZsuTools
             }
         }
         
+        /// <summary>
+        /// Колір шрифту комірки через ClosedXML (аналог <see cref="GetCellFontColor(Range)"/> для COM).
+        /// </summary>
+        public static Color GetCellFontColor(IXLCell cell)
+        {
+            try
+            {
+                var xlColor = cell.Style.Font.FontColor;
+                if (xlColor == null || !xlColor.HasValue) return Color.Black;
+
+                if (xlColor.ColorType == XLColorType.Theme)
+                {
+                    // XLColor.Color не працює для кольорів з теми - розв'язуємо через тему книги
+                    var baseColor = cell.Worksheet.Workbook.Theme.ResolveThemeColor(xlColor.ThemeColor).Color;
+                    return ApplyTint(baseColor, xlColor.ThemeTint);
+                }
+
+                return xlColor.Color;
+            }
+            catch
+            {
+                return Color.Black;
+            }
+        }
+
+        /// <summary>
+        /// Застосовує tint так само, як Excel: зміна яскравості (L) у просторі HSL.
+        /// tint &lt; 0 - темніше, tint &gt; 0 - світліше.
+        /// </summary>
+        private static Color ApplyTint(Color color, double tint)
+        {
+            if (Math.Abs(tint) < 1e-9) return color;
+
+            double h = color.GetHue();
+            double s = color.GetSaturation();
+            double l = color.GetBrightness();
+
+            l = tint < 0 ? l * (1 + tint) : l * (1 - tint) + tint;
+
+            return FromHsl(h, s, l);
+        }
+
+        private static Color FromHsl(double h, double s, double l)
+        {
+            double c = (1 - Math.Abs(2 * l - 1)) * s;
+            double x = c * (1 - Math.Abs(h / 60 % 2 - 1));
+            double m = l - c / 2;
+
+            double r, g, b;
+            if (h < 60) { r = c; g = x; b = 0; }
+            else if (h < 120) { r = x; g = c; b = 0; }
+            else if (h < 180) { r = 0; g = c; b = x; }
+            else if (h < 240) { r = 0; g = x; b = c; }
+            else if (h < 300) { r = x; g = 0; b = c; }
+            else { r = c; g = 0; b = x; }
+
+            return Color.FromArgb(
+                (int)Math.Round((r + m) * 255),
+                (int)Math.Round((g + m) * 255),
+                (int)Math.Round((b + m) * 255));
+        }
+
         public static Color GetCellFillColor(Range cell)
         {
             if (cell == null || cell.Interior.Color == null) 

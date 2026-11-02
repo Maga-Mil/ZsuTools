@@ -4,14 +4,13 @@ using System.Drawing;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using Excel = Microsoft.Office.Interop.Excel;
-using ExcelDna.Integration;
+using ZsuTools.Tables;
 
 namespace ZsuTools
 {
     public class BatchProcessor
     {
-        public static Dictionary<int, List<Tuple<RankPerson, SZState, Color>>> ProcessMonthlyFiles()
+        public static Dictionary<int, List<StroyovaZapyska.Entry>> ProcessMonthlyFiles()
         {
             // 1. Показуємо користувачу діалог вибору файлу (.NET Framework Windows Forms)
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
@@ -21,7 +20,7 @@ namespace ZsuTools
 
                 if (openFileDialog.ShowDialog() != DialogResult.OK)
                 {
-                    return new Dictionary<int, List<Tuple<RankPerson, SZState, Color>>>(); // Користувач скасував вибір
+                    return new Dictionary<int, List<StroyovaZapyska.Entry>>(); // Користувач скасував вибір
                 }
 
                 string selectedFilePath = openFileDialog.FileName;
@@ -40,24 +39,15 @@ namespace ZsuTools
                 {
                     MessageBox.Show("Назва вибраного файлу не відповідає формату '<префікс> ДД.ММ.РРРР.xlsx'. Неможливо",
                         "Помилка формату", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return new Dictionary<int, List<Tuple<RankPerson, SZState, Color>>>();
+                    return new Dictionary<int, List<StroyovaZapyska.Entry>>();
                 }
 
                 string prefix = match.Groups["prefix"].Value;
                 string monthStr = match.Groups["month"].Value;
                 string yearStr = match.Groups["year"].Value;
 
-                // Отримуємо доступ до головного COM-об'єкта Excel через Excel-DNA
-                Excel.Application excelApp = (Excel.Application)ExcelDnaUtil.Application;
-
-                // Вимикаємо оновлення екрану та сповіщення для прискорення роботи
-                bool previousScreenUpdating = excelApp.ScreenUpdating;
-                bool previousDisplayAlerts = excelApp.DisplayAlerts;
-                excelApp.ScreenUpdating = false;
-                excelApp.DisplayAlerts = false;
-
                 // Сюди збираємо результати: Ключ — день місяця, Значення — список tuples людей
-                var monthlyResults = new Dictionary<int, List<Tuple<RankPerson, SZState, Color>>>();
+                var monthlyResults = new Dictionary<int, List<StroyovaZapyska.Entry>>();
 
                 try
                 {
@@ -87,42 +77,17 @@ namespace ZsuTools
                         if(targetFilePath == null)
                             continue;
 
-                        Excel.Workbook workbook = null;
                         try
                         {
-                            // Відкриваємо файл (ReadOnly = true, щоб нічого випадково не змінити)
-                            workbook = excelApp.Workbooks.Open(targetFilePath, ReadOnly: true);
-
-                            if (workbook.Worksheets.Count > 0)
-                            {
-                                // Беремо перший worksheet (в Excel COM індексація починається з 1)
-                                Excel.Worksheet worksheet = (Excel.Worksheet)workbook.Worksheets[1];
-
-                                // Викликаємо ваш метод парсингу комірок
-                                var dayData = SZParser.ParseMilitaryData(worksheet);
-
-                                // Зберігаємо в загальний словник під номером дня
-                                monthlyResults.Add(day, dayData);
-                            }
+                            // ClosedXML читає файл напряму, без Excel Interop
+                            var stroyova = new StroyovaZapyska(targetFilePath);
+                            monthlyResults.Add(day, stroyova.Items);
                         }
                         catch (Exception ex)
                         {
                             MessageBox.Show($"Помилка обробки файлу {targetFileName}. : {ex.Message}", "Помилка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
-                        finally
-                        {
-                            // Обов'язково закриваємо книгу без збереження змін
-                            if (workbook != null)
-                            {
-                                workbook.Close(SaveChanges: false);
-                                System.Runtime.InteropServices.Marshal.ReleaseComObject(workbook);
-                            }
-                        }
                     }
-
-                    // Вмикаємо назад налаштування Excel
-                    excelApp.ScreenUpdating = previousScreenUpdating;
-                    excelApp.DisplayAlerts = previousDisplayAlerts;
 
                     // 4. Обробка фінального результату
                     //ProcessFinalResults(monthlyResults);
@@ -130,13 +95,11 @@ namespace ZsuTools
                 }
                 catch (Exception ex)
                 {
-                    excelApp.ScreenUpdating = previousScreenUpdating;
-                    excelApp.DisplayAlerts = previousDisplayAlerts;
                     MessageBox.Show("Помилка пакетної обробки: " + ex.Message);
                 }
             }
 
-            return  new Dictionary<int, List<Tuple<RankPerson, SZState, Color>>>();
+            return  new Dictionary<int, List<StroyovaZapyska.Entry>>();
         }
         
     }
