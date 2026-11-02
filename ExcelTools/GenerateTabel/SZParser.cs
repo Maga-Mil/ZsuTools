@@ -96,6 +96,54 @@ namespace ZsuTools
             return result;
         }
 
+        private const string DateCellAddress = "H3";
+
+        /// <summary>
+        /// Читає обов'язкову дату Стройової Записки з комірки H3 (COM).
+        /// </summary>
+        public static DateTime ParseDate(Worksheet worksheet)
+        {
+            Range cell = worksheet.Range[DateCellAddress];
+            if (cell.MergeCells is bool merged && merged)
+            {
+                cell = cell.MergeArea.Cells[1, 1];
+            }
+
+            // Дата в Excel - це число (OADate)
+            if (cell.Value2 is double oaDate)
+            {
+                return DateTime.FromOADate(oaDate);
+            }
+
+            string actualText = Convert.ToString(cell.Text);
+            throw DateNotFound(actualText);
+        }
+
+        /// <summary>
+        /// Читає обов'язкову дату Стройової Записки з комірки H3 (ClosedXML).
+        /// </summary>
+        public static DateTime ParseDate(IXLWorksheet worksheet)
+        {
+            var cell = worksheet.Cell(DateCellAddress);
+            if (cell.IsMerged())
+            {
+                cell = cell.MergedRange().FirstCell();
+            }
+
+            if (cell.DataType == XLDataType.DateTime)
+            {
+                return cell.GetDateTime();
+            }
+
+            throw DateNotFound(cell.GetString());
+        }
+
+        private static FormatException DateNotFound(string actualText)
+        {
+            return new FormatException(
+                $"Комірка {DateCellAddress} Стройової Записки не містить дати (формат Date). Поточний вміст: '{actualText}'.");
+        }
+
         /// <summary>
         /// Версія парсера на ClosedXML (без Excel Interop). Логіка ідентична <see cref="ParseMilitaryData(Worksheet)"/>.
         /// </summary>

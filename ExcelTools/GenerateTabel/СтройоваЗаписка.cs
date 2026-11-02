@@ -24,9 +24,8 @@ namespace ZsuTools.GenerateTabel
             //Open first worksheet, its always Стройова Записка
             Worksheet worksheet = стройоваЗапискаWb.Worksheets[1];
 
-            var testResult = SZParser.ParseMilitaryData(worksheet);
-
-            MilitaryData = testResult;
+            Date = SZParser.ParseDate(worksheet);
+            MilitaryData = SZParser.ParseMilitaryData(worksheet);
         }
 
         /// <summary>
@@ -41,7 +40,7 @@ namespace ZsuTools.GenerateTabel
 
             using (var workbook = new XLWorkbook(filePath))
             {
-                MilitaryData = ParseWorkbook(workbook);
+                Load(workbook);
             }
         }
 
@@ -57,11 +56,11 @@ namespace ZsuTools.GenerateTabel
 
             using (var workbook = new XLWorkbook(stream))
             {
-                MilitaryData = ParseWorkbook(workbook);
+                Load(workbook);
             }
         }
 
-        private static List<Tuple<RankPerson, SZState, Color>> ParseWorkbook(XLWorkbook workbook)
+        private void Load(XLWorkbook workbook)
         {
             if (workbook.Worksheets.Count == 0)
             {
@@ -69,7 +68,9 @@ namespace ZsuTools.GenerateTabel
             }
 
             // First worksheet is always Стройова Записка (ClosedXML worksheets are 1-based)
-            return SZParser.ParseMilitaryData(workbook.Worksheet(1));
+            var worksheet = workbook.Worksheet(1);
+            Date = SZParser.ParseDate(worksheet);
+            MilitaryData = SZParser.ParseMilitaryData(worksheet);
         }
     }
 }
