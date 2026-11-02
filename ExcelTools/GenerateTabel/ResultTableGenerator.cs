@@ -6,12 +6,13 @@ using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Excel = Microsoft.Office.Interop.Excel;
 using ExcelDna.Integration;
+using ZsuTools.Tables;
 
 namespace ZsuTools
 {
     public class ResultTableGenerator
     {
-        public static void GenerateSummaryTable(Dictionary<int, List<Tuple<RankPerson, SZState, Color>>> monthlyResults)
+        public static void GenerateSummaryTable(Dictionary<int, List<StroyovaZapyska.Entry>> monthlyResults)
         {
             if (monthlyResults == null || monthlyResults.Count == 0)
             {
@@ -59,8 +60,8 @@ namespace ZsuTools
 
                 foreach (var record in dayRecords)
                 {
-                    var person = record.Item1; 
-                    var location = record.Item2; 
+                    var person = record.Person; 
+                    var location = record.State; 
 
                     // Розбиваємо на Звання та ПІБ
                     var rank = person.Rank;
@@ -90,7 +91,7 @@ namespace ZsuTools
                     // Записуємо тип місцеположення у клітинку відповідного дня
                     sheet.Cells[targetRow, targetColumn] = LocationToTabelState(location.Location, location.LocationName);
                     //sheet.Cells[targetRow, targetColumn] = location.LocationName;
-                    sheet.Cells[targetRow, targetColumn].Font.Color = ColorTranslator.ToOle(record.Item3);
+                    sheet.Cells[targetRow, targetColumn].Font.Color = ColorTranslator.ToOle(record.Color);
                 }
             }
 
@@ -100,15 +101,15 @@ namespace ZsuTools
             excelApp.ScreenUpdating = previousScreenUpdating;
         }
 
-        private static string LocationToTabelState(LocationType location, string locationStr)
+        private static string LocationToTabelState(StroyovaZapyska.LocationType location, string locationStr)
         {
             switch (location)
             {
-                case LocationType.БЧ:
+                case StroyovaZapyska.LocationType.БЧ:
                     return "'++";
-                case LocationType.РЗ:
+                case StroyovaZapyska.LocationType.РЗ:
                     return "+";
-                case LocationType.Відсутній:
+                case StroyovaZapyska.LocationType.Відсутній:
                     if (locationStr.StartsWith("Відрядження", StringComparison.InvariantCultureIgnoreCase)) return "вдр";
                     else if (locationStr.StartsWith("Відпустка", StringComparison.InvariantCultureIgnoreCase)) return "від";
                     else if (locationStr.StartsWith("Лікування", StringComparison.InvariantCultureIgnoreCase)) return "лік";

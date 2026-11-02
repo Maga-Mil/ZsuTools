@@ -9,7 +9,6 @@ using ExcelDna.Integration;
 using ExcelDna.Integration.CustomUI;
 using Xceed.Document.NET;
 using Xceed.Words.NET;
-using ZsuTools.GenerateTabel;
 using ZsuTools.Tables;
 using Application = Microsoft.Office.Interop.Excel.Application;
 
@@ -66,6 +65,10 @@ namespace ZsuTools
             _ribbon = ribbonUi;
         }
 
+        /// <summary>
+        /// Сгенерувати рапорт на премію у Word документі на основі таблиці ООС у активному ЄЖООС файлі.
+        /// </summary>
+        /// <param name="control"></param>
         public void OnPremRewardClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
@@ -157,6 +160,10 @@ namespace ZsuTools
                 MessageBoxIcon.Error);
         }
 
+        /// <summary>
+        /// Сгенерувати рапорт на додаткову винагороду у Word документі на основі табеля у активному ЄЖООС файлі.
+        /// </summary>
+        /// <param name="control"></param>
         public void OnAddRewardClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
@@ -184,6 +191,11 @@ namespace ZsuTools
             }
         }
 
+        /// <summary>
+        /// Отримати табель зі Стройової Записки у активному ЄЖООС файлі. Поки що це здебільшого тестовий код.
+        /// TODO Зробити заповнення Табеля ЄЖООС на основі Стройової Записки, а не просто вивід статистики у MessageBox.
+        /// </summary>
+        /// <param name="control"></param>
         public void OnGetTabelFromStroyovaClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
@@ -202,17 +214,16 @@ namespace ZsuTools
                         return;
                     }
 
-                    var stroyova = new СтройоваЗаписка(openFileDialog.FileName);
+                    var stroyova = new StroyovaZapyska(openFileDialog.FileName);
 
-                    var byLocation = stroyova.MilitaryData
-                        .GroupBy(t => t.Item2.Location)
+                    var byLocation = stroyova.Items
+                        .GroupBy(t => t.State.Location)
                         .Select(g => $"{g.Key}: {g.Count()}");
-                    var sample = stroyova.MilitaryData
-                        .Take(5)
-                        .Select(t => $"{t.Item1.FullName} | {t.Item2.Location} | {t.Item3.Name}");
+                    var sample = stroyova.Items
+                        .Select(t => $"{t.Person.FullName} | {t.State.Location} | {t.Color.Name}");
 
                     MessageBox.Show(ExcelWindow.Instance,
-                        $"Прочитано записів: {stroyova.MilitaryData.Count}\n" +
+                        $"Прочитано записів: {stroyova.Items.Count}\n" +
                         $"{string.Join("\n", byLocation)}\n\n" +
                         $"Перші записи:\n{string.Join("\n", sample)}",
                         "Стройова записка (ClosedXML)", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -231,6 +242,11 @@ namespace ZsuTools
             }
         }
 
+        /// <summary>
+        /// Отримати табель зі Стройової Записки у активному ЄЖООС файлі, обробляючи всі файли місяця у папці.
+        /// Це не Табель ЄЖООС, а просто табличка схожа на Табель
+        /// </summary>
+        /// <param name="control"></param>
         public void OnGetTabelFromStroyovaBatchClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
@@ -258,6 +274,11 @@ namespace ZsuTools
             }
         }
 
+        /// <summary>
+        /// Тестове читання Табеля Залученості
+        /// TODO Заповнити Табель Залученості на основі Стройової Записки
+        /// </summary>
+        /// <param name="control"></param>
         public void OnGetTabelZaluchenostiClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
@@ -295,8 +316,7 @@ namespace ZsuTools
 
                     try
                     {
-                        var szWs = szWb.Sheets[1] as Microsoft.Office.Interop.Excel.Worksheet;
-                        var sz = new StroyovaZapyska(szWs);
+                        var sz = new StroyovaZapyska(szWb);
 
                         // Some sanity checks
                         if(tz.Items.Count != sz.Items.Count)
@@ -308,7 +328,7 @@ namespace ZsuTools
                         var mismatchedRecords = new List<string>();
                         foreach (var tzItem in tz.Items)
                         {
-                            var person = sz.Items.SingleOrDefault(r => r.Item1.FullName.Equals(tzItem.PersonFullName, StringComparison.InvariantCultureIgnoreCase));
+                            var person = sz.Items.SingleOrDefault(r => r.Person.FullName.Equals(tzItem.PersonFullName, StringComparison.InvariantCultureIgnoreCase));
                             if(person == null)
                             {
                                 mismatchedRecords.Add(tzItem.PersonFullName);

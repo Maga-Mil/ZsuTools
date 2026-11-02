@@ -4,13 +4,13 @@ using System.Drawing;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using ZsuTools.GenerateTabel;
+using ZsuTools.Tables;
 
 namespace ZsuTools
 {
     public class BatchProcessor
     {
-        public static Dictionary<int, List<Tuple<RankPerson, SZState, Color>>> ProcessMonthlyFiles()
+        public static Dictionary<int, List<StroyovaZapyska.Entry>> ProcessMonthlyFiles()
         {
             // 1. Показуємо користувачу діалог вибору файлу (.NET Framework Windows Forms)
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
@@ -20,7 +20,7 @@ namespace ZsuTools
 
                 if (openFileDialog.ShowDialog() != DialogResult.OK)
                 {
-                    return new Dictionary<int, List<Tuple<RankPerson, SZState, Color>>>(); // Користувач скасував вибір
+                    return new Dictionary<int, List<StroyovaZapyska.Entry>>(); // Користувач скасував вибір
                 }
 
                 string selectedFilePath = openFileDialog.FileName;
@@ -39,7 +39,7 @@ namespace ZsuTools
                 {
                     MessageBox.Show("Назва вибраного файлу не відповідає формату '<префікс> ДД.ММ.РРРР.xlsx'. Неможливо",
                         "Помилка формату", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return new Dictionary<int, List<Tuple<RankPerson, SZState, Color>>>();
+                    return new Dictionary<int, List<StroyovaZapyska.Entry>>();
                 }
 
                 string prefix = match.Groups["prefix"].Value;
@@ -47,7 +47,7 @@ namespace ZsuTools
                 string yearStr = match.Groups["year"].Value;
 
                 // Сюди збираємо результати: Ключ — день місяця, Значення — список tuples людей
-                var monthlyResults = new Dictionary<int, List<Tuple<RankPerson, SZState, Color>>>();
+                var monthlyResults = new Dictionary<int, List<StroyovaZapyska.Entry>>();
 
                 try
                 {
@@ -68,8 +68,8 @@ namespace ZsuTools
                         try
                         {
                             // ClosedXML читає файл напряму, без Excel Interop
-                            var stroyova = new СтройоваЗаписка(targetFilePath);
-                            monthlyResults.Add(day, stroyova.MilitaryData);
+                            var stroyova = new StroyovaZapyska(targetFilePath);
+                            monthlyResults.Add(day, stroyova.Items);
                         }
                         catch (Exception ex)
                         {
@@ -87,7 +87,7 @@ namespace ZsuTools
                 }
             }
 
-            return  new Dictionary<int, List<Tuple<RankPerson, SZState, Color>>>();
+            return  new Dictionary<int, List<StroyovaZapyska.Entry>>();
         }
         
     }

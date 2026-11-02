@@ -121,10 +121,9 @@
     <Compile Include="ExcelRibbon.cs" />
     <Compile Include="ExcelUtils.cs" />
     <Compile Include="GenerateTabel\BatchProcessor.cs" />
-    <Compile Include="GenerateTabel\SZParser.cs" />
     <Compile Include="GenerateTabel\RankPerson.cs" />
     <Compile Include="GenerateTabel\ResultTableGenerator.cs" />
-    <Compile Include="GenerateTabel\СтройоваЗаписка.cs" />
+    <Compile Include="Tables\StroyovaZapyska.cs" />
     <Compile Include="MoneyReportGenerator.cs" />
     <Compile Include="PositionEntry.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -132,7 +131,6 @@
     <Compile Include="TabelEntry.cs" />
     <Compile Include="Tables\OOSTable.cs" />
     <Compile Include="Tables\PositionsTable.cs" />
-    <Compile Include="Tables\StroyovaZapyska.cs" />
     <Compile Include="Tables\TabelZaluchenosti.cs" />
     <Compile Include="UDFs\CheckCellFunctions.cs" />
     <Compile Include="UDFs\StringFunctions.cs" />
