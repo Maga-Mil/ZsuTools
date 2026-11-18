@@ -49,8 +49,13 @@ namespace ZsuTools
                            +
                            @"</group>
                              <group id='tabelZaluchenosti' label='Табель залученості'>
-                                <button id='btnTabelZaluchenosti' label='Читати Табель залученості' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelZaluchenostiClicked' />
-                             </group>
+                                <button id='btnTabelZaluchenosti' label='Читати Табель залученості' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelZaluchenostiClicked' />"
+#if DEBUG
+                   +
+        @"<button id='btnTestTabelZaluchenosti' label='Тест: порівняти COM і ClosedXML' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnTestTabelZaluchenostiClicked' />"
+#endif
+                           +
+                           @"</group>
                            </tab>
     </tabs>
   </ribbon>
@@ -272,6 +277,14 @@ namespace ZsuTools
                 excelApp.StatusBar = false;
                 //excelApp.DisplayStatusBar = false;
             }
+        }
+
+        /// <summary>
+        /// Ручний тест: порівнює читання Табеля Залученості через COM (активна книга) і ClosedXML (файл з діалогу).
+        /// </summary>
+        public void OnTestTabelZaluchenostiClicked(IRibbonControl control)
+        {
+            Tests.TabelZaluchenostiTests.CompareComAndClosedXml();
         }
 
         /// <summary>

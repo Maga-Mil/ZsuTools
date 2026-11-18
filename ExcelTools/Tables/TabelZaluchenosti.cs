@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
+using ClosedXML.Excel;
 using ExcelDna.Integration;
 using Microsoft.Office.Interop.Excel;
 
@@ -26,6 +29,179 @@ namespace ZsuTools.Tables
             var items = ReadTableFromWorksheet(mainWorkSheet, Jobs, Presence);
             Items.AddRange(items);
         }
+
+        /// <summary>
+        /// Створює Табель Залученості з Excel файлу, використовуючи ClosedXML (без Excel Interop).
+        /// </summary>
+        public TabelZaluchenosti(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath))
+            {
+                throw new ArgumentException("Передано некоректний шлях до файлу.", nameof(filePath));
+            }
+
+            using (var workbook = new XLWorkbook(filePath))
+            {
+                Load(workbook);
+            }
+        }
+
+        /// <summary>
+        /// Створює Табель Залученості з Stream Excel файлу, використовуючи ClosedXML (без Excel Interop).
+        /// </summary>
+        public TabelZaluchenosti(Stream stream)
+        {
+            if (stream == null)
+            {
+                throw new ArgumentException("Передано некоректний потік даних.", nameof(stream));
+            }
+
+            using (var workbook = new XLWorkbook(stream))
+            {
+                Load(workbook);
+            }
+        }
+
+        private void Load(XLWorkbook workbook)
+        {
+            var jobsValues = GetDictionaryFromNamedRanges(workbook, "InvVal[val_code]", "InvVal[val_name]");
+            Jobs = new JobValue.Registry(jobsValues);
+
+            var presenceValues = GetDictionaryFromNamedRanges(workbook, "PersonVal[val_code]", "PersonVal[val_name]");
+            Presence = new PresenceValue.Registry(presenceValues);
+
+            var mainWorkSheet = workbook.Worksheets.FirstOrDefault(ws =>
+                ws.Name.IndexOf("Табелювання", StringComparison.InvariantCultureIgnoreCase) >= 0);
+            if (mainWorkSheet == null)
+            {
+                throw new ArgumentException("Не знайдено аркуш 'Табелювання', це не схоже на Табель Залученості.");
+            }
+
+            Items.AddRange(ReadTableFromWorksheet(mainWorkSheet, Jobs, Presence));
+        }
+
+        #region Reading: ClosedXML
+
+        /// <summary>
+        /// Читає рядки даних з аркуша через ClosedXML. Логіка ідентична COM-версії.
+        /// </summary>
+        private static List<Item> ReadTableFromWorksheet(IXLWorksheet sheet, JobValue.Registry jobValue,
+            PresenceValue.Registry presenceValue)
+        {
+            if (sheet == null)
+            {
+                throw new ArgumentNullException(nameof(sheet), "Аркуш не може бути порожнім.");
+            }
+
+            var results = new List<Item>();
+            int lastRow = sheet.LastRowUsed()?.RowNumber() ?? 0;
+
+            // Рядки 1 і 2 — заголовки, дані починаються з рядка 3
+            for (int row = 3; row <= lastRow; row++)
+            {
+                // Зупиняємось, щойно колонка A порожня
+                if (IsCellEmpty(GetCellValue(sheet.Cell(row, 1))))
+                {
+                    break;
+                }
+
+                results.Add(ParseItem(col => GetCellValue(sheet.Cell(row, col)), jobValue, presenceValue));
+            }
+
+            return results;
+        }
+
+        /// <summary>
+        /// Повертає значення комірки у тому ж представленні, що й COM Value2:
+        /// числа і дати/час — double (OADate), текст — string, порожня комірка — null.
+        /// </summary>
+        private static object GetCellValue(IXLCell cell)
+        {
+            if (cell.IsMerged())
+            {
+                cell = cell.MergedRange().FirstCell();
+            }
+
+            XLCellValue value = cell.Value;
+
+            if (value.IsBlank) return null;
+            if (value.IsNumber) return value.GetNumber();
+            if (value.IsDateTime) return value.GetDateTime().ToOADate();
+            if (value.IsTimeSpan) return value.GetTimeSpan().TotalDays;
+            if (value.IsBoolean) return value.GetBoolean();
+            if (value.IsText) return value.GetText();
+
+            // Помилки формул (#N/A тощо) вважаємо порожніми
+            return null;
+        }
+
+        private static Dictionary<string, string> GetDictionaryFromNamedRanges(XLWorkbook workbook,
+            string keyRangeName, string valRangeName)
+        {
+            var keys = ResolveColumnValues(workbook, keyRangeName);
+            var values = ResolveColumnValues(workbook, valRangeName);
+
+            var result = new Dictionary<string, string>();
+            for (int i = 0; i < keys.Count; i++)
+            {
+                string key = keys[i];
+                string val = i < values.Count ? values[i] : string.Empty;
+
+                if (!string.IsNullOrEmpty(key) && !result.ContainsKey(key))
+                {
+                    result.Add(key, val);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Повертає значення колонки за виразом виду "Table[column]" (розумна таблиця) або за іменем діапазону.
+        /// </summary>
+        private static List<string> ResolveColumnValues(XLWorkbook workbook, string rangeExpression)
+        {
+            var result = new List<string>();
+
+            var match = Regex.Match(rangeExpression, @"^(?<table>[^\[]+)\[(?<column>[^\]]+)\]$");
+            if (match.Success)
+            {
+                string tableName = match.Groups["table"].Value;
+                string columnName = match.Groups["column"].Value;
+
+                var table = workbook.Worksheets
+                    .SelectMany(ws => ws.Tables)
+                    .FirstOrDefault(t => t.Name.Equals(tableName, StringComparison.InvariantCultureIgnoreCase));
+                if (table == null)
+                {
+                    throw new ArgumentException($"Не знайдено таблицю '{tableName}' у книзі.");
+                }
+
+                foreach (var cell in table.Field(columnName).DataCells)
+                {
+                    result.Add(cell.GetString().Trim());
+                }
+
+                return result;
+            }
+
+            if (workbook.DefinedNames.TryGetValue(rangeExpression, out var definedName))
+            {
+                foreach (var range in definedName.Ranges)
+                {
+                    foreach (var cell in range.Cells())
+                    {
+                        result.Add(cell.GetString().Trim());
+                    }
+                }
+
+                return result;
+            }
+
+            throw new ArgumentException($"Не знайдено діапазон '{rangeExpression}' у книзі.");
+        }
+
+        #endregion
 
         /// <summary>
         /// Reads table data directly from the provided <see cref="Worksheet"/> instance parameter.
@@ -71,30 +247,38 @@ namespace ZsuTools.Tables
                     break;
                 }
 
-                var record = new Item
-                {
-                    LineNumber = ParseInt(data[row, 1]),
-                    UnitCode = ParseInt(data[row, 2]),
-                    UnitName = ParseString(data[row, 3]),
-                    PositionId = ParseInt(data[row, 4]),
-                    PositionName = ParseString(data[row, 5]),
-                    PersonId = ParseGuid(data[row, 6]),
-                    PersonRank = ParseString(data[row, 7]),
-                    PersonFullName = ParseString(data[row, 8]),
-                    PersonTaxCode = ParseUlong(data[row, 9]),
-                    Presence = ParsePresenceValue(data[row, 11], presenceValue),
-                    Job = ParseJobValue(data[row, 12], jobValue),
-                    JobDetails = ParseString(data[row, 13]),
-                    JobStartDate = ParseDateTimeOffset(data[row, 14]),
-                    JobStartTime = ParseTimeSpan(data[row, 15]),
-                    JobFinishDate = ParseDateTimeOffset(data[row, 16]),
-                    JobFinishTime = ParseTimeSpan(data[row, 17])
-                };
-
-                results.Add(record);
+                int currentRow = row;
+                results.Add(ParseItem(col => data[currentRow, col], jobValue, presenceValue));
             }
 
             return results;
+        }
+
+        /// <summary>
+        /// Збирає запис з значень комірок рядка (спільне для COM і ClosedXML). Номер колонки — 1-based.
+        /// </summary>
+        private static Item ParseItem(Func<int, object> cell, JobValue.Registry jobValue,
+            PresenceValue.Registry presenceValue)
+        {
+            return new Item
+            {
+                LineNumber = ParseInt(cell(1)),
+                UnitCode = ParseInt(cell(2)),
+                UnitName = ParseString(cell(3)),
+                PositionId = ParseInt(cell(4)),
+                PositionName = ParseString(cell(5)),
+                PersonId = ParseGuid(cell(6)),
+                PersonRank = ParseString(cell(7)),
+                PersonFullName = ParseString(cell(8)),
+                PersonTaxCode = ParseUlong(cell(9)),
+                Presence = ParsePresenceValue(cell(11), presenceValue),
+                Job = ParseJobValue(cell(12), jobValue),
+                JobDetails = ParseString(cell(13)),
+                JobStartDate = ParseDateTimeOffset(cell(14)),
+                JobStartTime = ParseTimeSpan(cell(15)),
+                JobFinishDate = ParseDateTimeOffset(cell(16)),
+                JobFinishTime = ParseTimeSpan(cell(17))
+            };
         }
 
         private static bool IsCellEmpty(object cellValue)
