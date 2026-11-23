@@ -118,6 +118,7 @@
     <Compile Include="Boot.cs" />
     <Compile Include="Entities\Person.cs" />
     <Compile Include="Entities\Rank.cs" />
+    <Compile Include="CustomUIBuilder.cs" />
     <Compile Include="ExcelRibbon.cs" />
     <Compile Include="ExcelUtils.cs" />
     <Compile Include="GenerateTabel\BatchProcessor.cs" />

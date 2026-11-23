@@ -22,46 +22,28 @@ namespace ZsuTools
         // Return the ribbon XML for Excel to render.
         public override string GetCustomUI(string ribbonId)
         {
-            var customUI = @"<customUI xmlns='http://schemas.microsoft.com/office/2009/07/customui'>
-  <ribbon>
-    <tabs>"
-
 #if DEBUG
-                           + "<tab id='tabZsuTools_DEBUG' label='ЗСУ debug'>"
+            const bool isDebug = true;
+            const string tabId = "tabZsuTools_DEBUG";
+            const string tabLabel = "ЗСУ debug";
 #else
-            +"<tab id='tabZsuTools' label='ЗСУ'>"
+            const bool isDebug = false;
+            const string tabId = "tabZsuTools";
+            const string tabLabel = "ЗСУ";
 #endif
-                           +
-                           @"<group id='groupMain' label='ЄЖООС'>"
-                           + "<button id='btnAddReward' label='Рапорт на додаткову винагороду' size='large' imageMso='InternationalCurrency' showImage='true' onAction='OnAddRewardClicked' />"
-//#if DEBUG
-                           + "<button id='btnPremReward' label='Рапорт на премію' size='large' imageMso='InternationalCurrency' showImage='true' onAction='OnPremRewardClicked' />"
-//#endif
-                           + "</group>"
-                           +
-                           @"<group id='groupStroyova' label='Стройова'>
-                                <button id='btnGetTabelFromStroyovaBatch' label='Отримати табель зі Стройової Записки (пакетно)' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelFromStroyovaBatchClicked' />
-"
-#if DEBUG
-                   + 
-        @"<button id='btnGetTabelFromStroyova' label='Отримати табель зі Стройової Записки' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelFromStroyovaClicked' />"
-#endif
-                           +
-                           @"</group>
-                             <group id='tabelZaluchenosti' label='Табель залученості'>
-                                <button id='btnTabelZaluchenosti' label='Читати Табель залученості' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnGetTabelZaluchenostiClicked' />"
-#if DEBUG
-                   +
-        @"<button id='btnTestTabelZaluchenosti' label='Тест: порівняти COM і ClosedXML' size='large' imageMso='AccessListEvents' showImage='true' onAction='OnTestTabelZaluchenostiClicked' />"
-#endif
-                           +
-                           @"</group>
-                           </tab>
-    </tabs>
-  </ribbon>
-</customUI>";
 
-            return customUI;
+            return new CustomUIBuilder()
+                .AddTab(tabId, tabLabel)
+                    .AddGroup("groupMain", "ЄЖООС")
+                        .AddButton("btnAddReward", "Рапорт на додаткову винагороду", "OnAddRewardClicked", "InternationalCurrency")
+                        .AddButton("btnPremReward", "Рапорт на премію", "OnPremRewardClicked", "InternationalCurrency")
+                    .AddGroup("groupStroyova", "Стройова")
+                        .AddButton("btnGetTabelFromStroyovaBatch", "Отримати табель зі Стройової Записки (пакетно)", "OnGetTabelFromStroyovaBatchClicked", "AccessListEvents")
+                        .AddButtonIf(isDebug, "btnGetTabelFromStroyova", "Отримати табель зі Стройової Записки", "OnGetTabelFromStroyovaClicked", "AccessListEvents")
+                    .AddGroup("tabelZaluchenosti", "Табель залученості")
+                        .AddButton("btnTabelZaluchenosti", "Читати Табель залученості", "OnGetTabelZaluchenostiClicked", "AccessListEvents")
+                        .AddButtonIf(isDebug, "btnTestTabelZaluchenosti", "Тест: порівняти COM і ClosedXML", "OnTestTabelZaluchenostiClicked", "AccessListEvents")
+                .Build();
         }
 
         // Called when Excel loads the ribbon
