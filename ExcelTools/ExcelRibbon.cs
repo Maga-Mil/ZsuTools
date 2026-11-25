@@ -34,15 +34,22 @@ namespace ZsuTools
 
             return new CustomUIBuilder()
                 .AddTab(tabId, tabLabel)
-                    .AddGroup("groupMain", "ЄЖООС")
-                        .AddButton("btnAddReward", "Рапорт на додаткову винагороду", "OnAddRewardClicked", "InternationalCurrency")
-                        .AddButton("btnPremReward", "Рапорт на премію", "OnPremRewardClicked", "InternationalCurrency")
-                    .AddGroup("groupStroyova", "Стройова")
-                        .AddButton("btnGetTabelFromStroyovaBatch", "Отримати табель зі Стройової Записки (пакетно)", "OnGetTabelFromStroyovaBatchClicked", "AccessListEvents")
-                        .AddButtonIf(isDebug, "btnGetTabelFromStroyova", "Отримати табель зі Стройової Записки", "OnGetTabelFromStroyovaClicked", "AccessListEvents")
-                    .AddGroup("tabelZaluchenosti", "Табель залученості")
-                        .AddButton("btnTabelZaluchenosti", "Читати Табель залученості", "OnGetTabelZaluchenostiClicked", "AccessListEvents")
-                        .AddButtonIf(isDebug, "btnTestTabelZaluchenosti", "Тест: порівняти COM і ClosedXML", "OnTestTabelZaluchenostiClicked", "AccessListEvents")
+                .AddGroup("groupMain", "ЄЖООС")
+                .AddButton("btnAddReward", "Рапорт на додаткову винагороду", "OnAddRewardClicked",
+                    "InternationalCurrency")
+                .AddButton("btnPremReward", "Рапорт на премію", "OnPremRewardClicked", "InternationalCurrency")
+                .AddGroup("groupStroyova", "Стройова")
+                .AddButton("btnGetTabelFromStroyovaBatch", "Отримати табель зі Стройової Записки (пакетно)",
+                    "OnGetTabelFromStroyovaBatchClicked", "AccessListEvents")
+                .AddButtonIf(isDebug, "btnGetTabelFromStroyova", "Отримати табель зі Стройової Записки",
+                    "OnGetTabelFromStroyovaClicked", "AccessListEvents")
+                .AddGroup("tabelZaluchenosti", "Табель залученості")
+                .AddButton("btnTabelZaluchenosti", "Читати Табель залученості", "OnGetTabelZaluchenostiClicked",
+                    "AccessListEvents")
+                .AddButtonIf(isDebug, "btnTestTabelZaluchenosti", "Тест: порівняти COM і ClosedXML",
+                    "OnTestTabelZaluchenostiClicked", "AccessListEvents")
+                .AddButtonIf(isDebug, "btnTestSaveTabelZaluchenosti", "Тест: збереження Job/JobDetails",
+                    "OnTestSaveTabelZaluchenostiClicked", "AccessListEvents")
                 .Build();
         }
 
@@ -78,7 +85,7 @@ namespace ZsuTools
                         if (folderDialog.ShowDialog() == DialogResult.OK)
                         {
                             var selectedFolder = folderDialog.SelectedPath;
-                            
+
                             //Create report base
                             var reportPath = Path.Combine(selectedFolder, "рапорт_на_премію.docx");
                             using (var document = DocX.Create(reportPath))
@@ -95,17 +102,19 @@ namespace ZsuTools
                                 var numList = document.AddList(null, 0, ListItemType.Numbered, 1);
                                 for (int i = 0; i < oosTable.Items.Count; i++)
                                 {
-                                    document.AddListItem(numList,"");
+                                    document.AddListItem(numList, "");
                                 }
-                                
+
                                 //Add header
                                 table.Rows[0].Cells[0].Paragraphs[0].Append("№ п/п").FontSize(10);
                                 table.Rows[0].Cells[1].Paragraphs[0].Append("Військове звання").FontSize(10);
-                                table.Rows[0].Cells[2].Paragraphs[0].Append("Прізвище, ім’я,\nпо батькові").FontSize(10);
+                                table.Rows[0].Cells[2].Paragraphs[0].Append("Прізвище, ім’я,\nпо батькові")
+                                    .FontSize(10);
                                 table.Rows[0].Cells[3].Paragraphs[0].Append("Індекс посади").FontSize(10);
                                 table.Rows[0].Cells[4].Paragraphs[0].Append("РНОКПП").FontSize(10);
                                 table.Rows[0].Cells[5].Paragraphs[0].Append("Розмір премії").FontSize(10);
-                                table.Rows[0].Cells[6].Paragraphs[0].Append("Стягнення\n(ким, коли і за що накладено)").FontSize(10);
+                                table.Rows[0].Cells[6].Paragraphs[0].Append("Стягнення\n(ким, коли і за що накладено)")
+                                    .FontSize(10);
 
                                 //Add data
                                 for (int i = 0; i < oosTable.Items.Count; i++)
@@ -118,21 +127,21 @@ namespace ZsuTools
                                     listItem.Append("").FontSize(10);
                                     numberCell.InsertParagraph(listItem);
                                     table.Rows[i + 1].Cells[1].Paragraphs[0].Append(item.Rank.RankName).FontSize(10);
-                                    table.Rows[i + 1].Cells[2].Paragraphs[0].Append(item.Person.ToString()).FontSize(10);
+                                    table.Rows[i + 1].Cells[2].Paragraphs[0].Append(item.Person.ToString())
+                                        .FontSize(10);
                                     table.Rows[i + 1].Cells[3].Paragraphs[0]
                                         .Append(item.Position.First().ToString() ?? "").FontSize(10);
                                     table.Rows[i + 1].Cells[4].Paragraphs[0].Append(item.RNOKPP).FontSize(10);
                                     table.Rows[i + 1].Cells[5].Paragraphs[0].Append("100%").FontSize(10);
                                     table.Rows[i + 1].Cells[6].Paragraphs[0].Append("Відсутнє").FontSize(10);
-                                    
                                 }
 
                                 document.InsertTable(table);
-                                
+
 
                                 //Save document
                                 document.Save();
-                                
+
                                 Process.Start(new ProcessStartInfo(reportPath) { UseShellExecute = true });
                             }
                         }
@@ -168,7 +177,8 @@ namespace ZsuTools
             }
             catch (Exception e)
             {
-                MessageBox.Show(ExcelWindow.Instance, $"Error catched, money report is discarded. {e}", "MoneyReport", MessageBoxButtons.OK,
+                MessageBox.Show(ExcelWindow.Instance, $"Error catched, money report is discarded. {e}", "MoneyReport",
+                    MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
             finally
@@ -218,7 +228,8 @@ namespace ZsuTools
             }
             catch (Exception e)
             {
-                MessageBox.Show(ExcelWindow.Instance, $"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
+                MessageBox.Show(ExcelWindow.Instance,
+                    $"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
                     "Стройова записка", MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
@@ -250,7 +261,8 @@ namespace ZsuTools
             }
             catch (Exception e)
             {
-                MessageBox.Show(ExcelWindow.Instance, $"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
+                MessageBox.Show(ExcelWindow.Instance,
+                    $"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
                     "Стройова записка", MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
@@ -270,6 +282,14 @@ namespace ZsuTools
         }
 
         /// <summary>
+        /// Ручний тест: зміна Job/JobDetails, збереження через COM, перечитування і відновлення початкових значень.
+        /// </summary>
+        public void OnTestSaveTabelZaluchenostiClicked(IRibbonControl control)
+        {
+            Tests.TabelZaluchenostiTests.SaveRoundTrip();
+        }
+
+        /// <summary>
         /// Тестове читання Табеля Залученості
         /// TODO Заповнити Табель Залученості на основі Стройової Записки
         /// </summary>
@@ -280,17 +300,20 @@ namespace ZsuTools
             try
             {
                 var workBook = excelApp.ActiveWorkbook;
-                if(workBook == null)
+                if (workBook == null)
                 {
                     MessageBox.Show(ExcelWindow.Instance, "Не завантажено Табель Залученості.", "Табель залученості");
                     return;
                 }
+
                 var ws = ExcelUtils.FindWorksheetByNameContains(workBook, "Табелювання");
-                if(ws == null)
+                if (ws == null)
                 {
-                    MessageBox.Show(ExcelWindow.Instance, "Не знайдено таблицю 'Табелювання', це не схоже на Табель Залученості", "Табель залученості");
+                    MessageBox.Show(ExcelWindow.Instance,
+                        "Не знайдено таблицю 'Табелювання', це не схоже на Табель Залученості", "Табель залученості");
                     return;
                 }
+
                 var tz = new TabelZaluchenosti(workBook);
 
                 using (OpenFileDialog openFileDialog = new OpenFileDialog())
@@ -306,7 +329,7 @@ namespace ZsuTools
                     string selectedFilePath = openFileDialog.FileName;
                     string directory = Path.GetDirectoryName(selectedFilePath);
                     string fileName = Path.GetFileName(selectedFilePath);
-                    
+
                     var szWb = excelApp.Workbooks.Open(selectedFilePath, ReadOnly: true);
 
                     try
@@ -314,25 +337,31 @@ namespace ZsuTools
                         var sz = new StroyovaZapyska(szWb);
 
                         // Some sanity checks
-                        if(tz.Items.Count != sz.Items.Count)
+                        if (tz.Items.Count != sz.Items.Count)
                         {
-                            MessageBox.Show(ExcelWindow.Instance, $"Кількість записів у Табелі Залученості ({tz.Items.Count}) не збігається з кількістю записів у Стройовій Записці ({sz.Items.Count}). Операця буде зупинена.", "Табель залученості");
+                            MessageBox.Show(ExcelWindow.Instance,
+                                $"Кількість записів у Табелі Залученості ({tz.Items.Count}) не збігається з кількістю записів у Стройовій Записці ({sz.Items.Count}). Операця буде зупинена.",
+                                "Табель залученості");
                             return;
                         }
-                        
+
                         var mismatchedRecords = new List<string>();
                         foreach (var tzItem in tz.Items)
                         {
-                            var person = sz.Items.SingleOrDefault(r => r.Person.FullName.Equals(tzItem.PersonFullName, StringComparison.InvariantCultureIgnoreCase));
-                            if(person == null)
+                            var person = sz.Items.SingleOrDefault(r =>
+                                r.Person.FullName.Equals(tzItem.PersonFullName,
+                                    StringComparison.InvariantCultureIgnoreCase));
+                            if (person == null)
                             {
                                 mismatchedRecords.Add(tzItem.PersonFullName);
                             }
                         }
-                        
-                        if(mismatchedRecords.Count > 0)
+
+                        if (mismatchedRecords.Count > 0)
                         {
-                            MessageBox.Show(ExcelWindow.Instance, $"У Табелі Залученості присутні записи, які відсутні у Стройовій Записці:\n\r {String.Join(", ", mismatchedRecords)}. \n\rТреба виправити ПІБ у Стройовій Записці відповідно до Табеля Залученості. Операця буде зупинена.", "Табель залученості");
+                            MessageBox.Show(ExcelWindow.Instance,
+                                $"У Табелі Залученості присутні записи, які відсутні у Стройовій Записці:\n\r {String.Join(", ", mismatchedRecords)}. \n\rТреба виправити ПІБ у Стройовій Записці відповідно до Табеля Залученості. Операця буде зупинена.",
+                                "Табель залученості");
                             return;
                         }
                     }
@@ -340,20 +369,18 @@ namespace ZsuTools
                     {
                         szWb.Close(false);
                     }
-                    
                 }
 
-                MessageBox.Show(ExcelWindow.Instance, $"Successfully parsed {tz.Items.Count} records!", "Табель залученості");
-                
+                MessageBox.Show(ExcelWindow.Instance, $"Successfully parsed {tz.Items.Count} records!",
+                    "Табель залученості");
             }
             catch (Exception e)
             {
-                MessageBox.Show(ExcelWindow.Instance, $"Помилка при завантаженні табеля залученості: {e}", "Табель залученості");
+                MessageBox.Show(ExcelWindow.Instance, $"Помилка при завантаженні табеля залученості: {e}",
+                    "Табель залученості");
             }
-            
         }
-            
-            
+
 
         private void UpdateStatus(Application excelApp, string operationName)
         {
@@ -363,7 +390,7 @@ namespace ZsuTools
         private static readonly string[] UpdateStates = new[] { "-", "\\", "|", "/" };
         private int _updateStateIndex = 0;
     }
-    
+
     /// <summary>
     /// Wraps Excel's main HWND handle into an IWin32Window implementation
     /// so WinForms dialogs and MessageBoxes bind correctly as modal windows to Excel.

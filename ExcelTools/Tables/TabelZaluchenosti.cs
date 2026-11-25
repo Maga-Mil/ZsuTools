@@ -12,10 +12,31 @@ namespace ZsuTools.Tables
 {
     public class TabelZaluchenosti
     {
-        public List<Item> Items { get; private set; } = new List<Item>();
+        // Номери колонок аркуша «Табелювання» (1-based)
+        private const int ColPersonId = 6;
+        private const int ColJob = 12;
+        private const int ColJobDetails = 13;
+
+        private readonly List<Item> items = new List<Item>();
+
+        /// <summary>
+        /// Записи Табеля. Структурні зміни (додавання/видалення) не підтримуються; змінювати можна лише
+        /// поля записів (Job, JobDetails), після чого викликати <see cref="Save"/>.
+        /// </summary>
+        public IReadOnlyList<Item> Items => items;
 
         public JobValue.Registry Jobs { get; private set; }
         public PresenceValue.Registry Presence { get; private set; }
+
+        /// <summary>
+        /// Знімок записів на момент читання (або останнього збереження): snapshot[i] — копія items[i].
+        /// </summary>
+        private List<Item> snapshot = new List<Item>();
+
+        /// <summary>
+        /// Аркуш, з якого прочитано дані через COM. Для ClosedXML-джерел — null (збереження поки не підтримується).
+        /// </summary>
+        private readonly Worksheet comSheet;
 
         public TabelZaluchenosti(Workbook wb)
         {
@@ -26,8 +47,10 @@ namespace ZsuTools.Tables
             Presence = new PresenceValue.Registry(presenceValues);
 
             var mainWorkSheet = ExcelUtils.FindWorksheetByNameContains(wb, "Табелювання");
-            var items = ReadTableFromWorksheet(mainWorkSheet, Jobs, Presence);
-            Items.AddRange(items);
+            items.AddRange(ReadTableFromWorksheet(mainWorkSheet, Jobs, Presence));
+
+            comSheet = mainWorkSheet;
+            TakeSnapshot();
         }
 
         /// <summary>
@@ -77,8 +100,170 @@ namespace ZsuTools.Tables
                 throw new ArgumentException("Не знайдено аркуш 'Табелювання', це не схоже на Табель Залученості.");
             }
 
-            Items.AddRange(ReadTableFromWorksheet(mainWorkSheet, Jobs, Presence));
+            items.AddRange(ReadTableFromWorksheet(mainWorkSheet, Jobs, Presence));
+            TakeSnapshot();
         }
+
+        #region Changes tracking / Save
+
+        /// <summary>
+        /// Чи є зміни Job / JobDetails відносно прочитаного (або останнього збереженого) стану.
+        /// </summary>
+        public bool HasChanges => GetChanges().Count > 0;
+
+        /// <summary>
+        /// Записує у аркуш «Табелювання» відкритої книги лише ті комірки Job / JobDetails, що змінилися.
+        /// Книга на диск не зберігається.
+        /// </summary>
+        /// <returns>Кількість записаних комірок.</returns>
+        public int Save()
+        {
+            if (comSheet == null)
+            {
+                throw new NotSupportedException(
+                    "Збереження підтримується лише для Табеля Залученості, відкритого в Excel.");
+            }
+
+            var changes = GetChanges();
+            if (changes.Count == 0)
+            {
+                return 0;
+            }
+
+            // Рядок шукаємо за ID особи в момент збереження: між читанням і збереженням рядки на аркуші
+            // могли вставити/видалити/пересортувати (користувач або інший макрос).
+            // Спершу визначаємо рядки для всіх змін, щоб не було часткового запису.
+            var rowsById = BuildRowIndex(comSheet);
+            var targets = new List<KeyValuePair<int, CellChange>>(changes.Count);
+            foreach (var change in changes)
+            {
+                if (!rowsById.TryGetValue(change.PersonId, out int row))
+                {
+                    throw new InvalidOperationException(
+                        $"Не знайдено рядок особи '{change.PersonFullName}' на аркуші (можливо, рядок видалено " +
+                        "після читання). Перечитайте Табель Залученості та повторіть операцію.");
+                }
+
+                targets.Add(new KeyValuePair<int, CellChange>(row, change));
+            }
+
+            var app = comSheet.Application;
+            bool screenUpdating = app.ScreenUpdating;
+            app.ScreenUpdating = false;
+            try
+            {
+                foreach (var target in targets)
+                {
+                    ((Range)comSheet.Cells[target.Key, target.Value.Column]).Value2 = target.Value.Value;
+                }
+            }
+            finally
+            {
+                app.ScreenUpdating = screenUpdating;
+            }
+
+            TakeSnapshot();
+            return changes.Count;
+        }
+
+        /// <summary>
+        /// Будує відповідність «ID особи → номер рядка аркуша» за тими ж межами, що й читання:
+        /// з рядка 3 до першої порожньої комірки в колонці A. Читає дані одним COM-викликом.
+        /// </summary>
+        private static Dictionary<Guid, int> BuildRowIndex(Worksheet sheet)
+        {
+            var result = new Dictionary<Guid, int>();
+
+            int totalRows = sheet.UsedRange.Rows.Count;
+            if (totalRows < 3)
+            {
+                return result;
+            }
+
+            var data = (object[,])sheet.Range[sheet.Cells[1, 1], sheet.Cells[totalRows, ColPersonId]].Value2;
+            for (int row = 3; row <= totalRows; row++)
+            {
+                if (IsCellEmpty(data[row, 1]))
+                {
+                    break;
+                }
+
+                var id = ParseGuid(data[row, ColPersonId]);
+                if (result.TryGetValue(id, out var firstRow))
+                {
+                    throw new InvalidOperationException(
+                        $"ID особи у рядку {row} аркуша повторюється (уперше — у рядку {firstRow}). " +
+                        "Виправте Табель Залученості та повторіть операцію.");
+                }
+
+                result.Add(id, row);
+            }
+
+            return result;
+        }
+
+        private void TakeSnapshot()
+        {
+            snapshot = items.Select(i => i.Clone()).ToList();
+        }
+
+        /// <summary>
+        /// Обчислює список змінених комірок (Job / JobDetails). Не залежить від способу запису (COM / файл).
+        /// </summary>
+        private List<CellChange> GetChanges()
+        {
+            var result = new List<CellChange>();
+
+            for (var i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                var original = snapshot[i];
+
+                var job = item.Job ?? JobValue.Empty;
+                var originalJob = original.Job ?? JobValue.Empty;
+                if (job.Code != originalJob.Code || job.Value != originalJob.Value)
+                {
+                    if (ReferenceEquals(job, JobValue.Unknown))
+                    {
+                        throw new InvalidOperationException(
+                            $"Неможливо записати невідоме значення залученості для '{item.PersonFullName}'.");
+                    }
+
+                    object value = ReferenceEquals(job, JobValue.Empty) ? null : job.Value;
+                    result.Add(new CellChange(original, ColJob, value));
+                }
+
+                // Обрізаємо пробіли так само, як читання (ParseString), щоб записане збігалося з перечитаним
+                string details = (item.JobDetails ?? string.Empty).Trim();
+                string originalDetails = (original.JobDetails ?? string.Empty).Trim();
+                if (!string.Equals(details, originalDetails, StringComparison.Ordinal))
+                {
+                    object value = details.Length == 0 ? null : details;
+                    result.Add(new CellChange(original, ColJobDetails, value));
+                }
+            }
+
+            return result;
+        }
+
+        private sealed class CellChange
+        {
+            // ПІБ беремо зі знімка, а не з живого (змінюваного) запису
+            public CellChange(Item original, int column, object value)
+            {
+                PersonId = original.PersonId;
+                PersonFullName = original.PersonFullName;
+                Column = column;
+                Value = value;
+            }
+
+            public Guid PersonId { get; }
+            public string PersonFullName { get; }
+            public int Column { get; }
+            public object Value { get; }
+        }
+
+        #endregion
 
         #region Reading: ClosedXML
 
@@ -208,7 +393,8 @@ namespace ZsuTools.Tables
         /// </summary>
         /// <param name="sheet">The target Excel worksheet instance to read from.</param>
         /// <returns>List of parsed <see cref="Item"/> items.</returns>
-        private static List<Item> ReadTableFromWorksheet(Worksheet sheet, JobValue.Registry jobValue, PresenceValue.Registry presenceValue)
+        private static List<Item> ReadTableFromWorksheet(Worksheet sheet, JobValue.Registry jobValue,
+            PresenceValue.Registry presenceValue)
         {
             if (sheet == null)
             {
@@ -260,20 +446,19 @@ namespace ZsuTools.Tables
         private static Item ParseItem(Func<int, object> cell, JobValue.Registry jobValue,
             PresenceValue.Registry presenceValue)
         {
-            return new Item
+            return new Item(ParseGuid(cell(ColPersonId)))
             {
                 LineNumber = ParseInt(cell(1)),
                 UnitCode = ParseInt(cell(2)),
                 UnitName = ParseString(cell(3)),
                 PositionId = ParseInt(cell(4)),
                 PositionName = ParseString(cell(5)),
-                PersonId = ParseGuid(cell(6)),
                 PersonRank = ParseString(cell(7)),
                 PersonFullName = ParseString(cell(8)),
                 PersonTaxCode = ParseUlong(cell(9)),
                 Presence = ParsePresenceValue(cell(11), presenceValue),
-                Job = ParseJobValue(cell(12), jobValue),
-                JobDetails = ParseString(cell(13)),
+                Job = ParseJobValue(cell(ColJob), jobValue),
+                JobDetails = ParseString(cell(ColJobDetails)),
                 JobStartDate = ParseDateTimeOffset(cell(14)),
                 JobStartTime = ParseTimeSpan(cell(15)),
                 JobFinishDate = ParseDateTimeOffset(cell(16)),
@@ -593,12 +778,22 @@ namespace ZsuTools.Tables
 
         public class Item
         {
+            internal Item(Guid personId)
+            {
+                PersonId = personId;
+            }
+
             public int LineNumber { get; set; }
             public int UnitCode { get; set; }
             public string UnitName { get; set; }
             public int PositionId { get; set; }
             public string PositionName { get; set; }
-            public Guid PersonId { get; set; }
+
+            /// <summary>
+            /// ID особи — ключ для пошуку рядка на аркуші під час збереження, тому змінювати його не можна.
+            /// </summary>
+            public Guid PersonId { get; }
+
             public string PersonRank { get; set; }
             public string PersonFullName { get; set; }
             public ulong PersonTaxCode { get; set; }
@@ -609,6 +804,8 @@ namespace ZsuTools.Tables
             public TimeSpan? JobStartTime { get; set; }
             public DateTimeOffset? JobFinishDate { get; set; }
             public TimeSpan? JobFinishTime { get; set; }
+
+            internal Item Clone() => (Item)MemberwiseClone();
         }
 
         public sealed class JobValue
@@ -692,7 +889,6 @@ namespace ZsuTools.Tables
 
             public class Registry
             {
-                
                 /// <summary>
                 /// В наявності
                 /// </summary>
