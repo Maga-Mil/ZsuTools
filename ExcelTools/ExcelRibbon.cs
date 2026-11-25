@@ -375,21 +375,28 @@ namespace ZsuTools
                     var tzByName = tz.Items.ToLookup(i => i.PersonFullName, StringComparer.InvariantCultureIgnoreCase);
                     var notFound = new List<string>();
                     var ambiguous = new List<string>();
+                    var unknownLocations = new List<string>();
+                    var missingJobValues = new List<string>();
                     var assignments = new List<KeyValuePair<TabelZaluchenosti.Item, TabelZaluchenosti.JobValue>>();
 
                     foreach (var szItem in sz.Items)
                     {
-                        TabelZaluchenosti.JobValue job;
-                        switch (szItem.State.Location)
+                        var job = LocationToJob(szItem.State, tz.Jobs, out string jobKey);
+                        if (job == null)
                         {
-                            case StroyovaZapyska.LocationType.БЧ:
-                                job = tz.Jobs.BATTALION_DEFENSE_SECTOR;
-                                break;
-                            case StroyovaZapyska.LocationType.РЗ:
-                                job = tz.Jobs.COMBAT_SUPPORT;
-                                break;
-                            default:
-                                continue; // Відсутніх поки не обробляємо
+                            unknownLocations.Add($"{szItem.Person.FullName} — «{szItem.State.LocationName}»");
+                            continue;
+                        }
+
+                        if (ReferenceEquals(job, TabelZaluchenosti.JobValue.Unknown))
+                        {
+                            // Значення Залученості відсутнє у довіднику InvVal Табеля
+                            if (!missingJobValues.Contains(jobKey))
+                            {
+                                missingJobValues.Add(jobKey);
+                            }
+
+                            continue;
                         }
 
                         var matches = tzByName[szItem.Person.FullName].ToList();
@@ -408,9 +415,22 @@ namespace ZsuTools
                         }
                     }
 
-                    if (notFound.Count > 0 || ambiguous.Count > 0)
+                    if (notFound.Count > 0 || ambiguous.Count > 0 || unknownLocations.Count > 0 ||
+                        missingJobValues.Count > 0)
                     {
                         var message = new StringBuilder();
+                        if (unknownLocations.Count > 0)
+                        {
+                            message.AppendLine(
+                                $"Невідоме місцезнаходження у Стройовій Записці (виправте Стройову Записку):\n{string.Join("\n", unknownLocations)}\n");
+                        }
+
+                        if (missingJobValues.Count > 0)
+                        {
+                            message.AppendLine(
+                                $"У довіднику Залученості (InvVal) Табеля відсутні значення:\n{string.Join(", ", missingJobValues)}\n");
+                        }
+
                         if (notFound.Count > 0)
                         {
                             message.AppendLine(
@@ -437,7 +457,7 @@ namespace ZsuTools
 
                     MessageBox.Show(ExcelWindow.Instance,
                         $"Залученість заповнено зі Стройової Записки на {sz.Date:dd.MM.yyyy}.\n" +
-                        $"Оброблено осіб (БЧ/РЗ): {assignments.Count}, змінено комірок: {written}.",
+                        $"Оброблено осіб: {assignments.Count}, змінено комірок: {written}.",
                         "Табель залученості");
                 }
             }
@@ -445,6 +465,49 @@ namespace ZsuTools
             {
                 MessageBox.Show(ExcelWindow.Instance, $"Помилка при завантаженні табеля залученості: {e}",
                     "Табель залученості");
+            }
+        }
+
+        /// <summary>
+        /// Відповідність місцезнаходження зі Стройової Записки значенню Залученості Табеля.
+        /// Повертає null, якщо місцезнаходження невідоме (треба виправити Стройову Записку).
+        /// У jobKey — код значення Залученості (для повідомлення, якщо його немає у довіднику InvVal).
+        /// </summary>
+        private static TabelZaluchenosti.JobValue LocationToJob(StroyovaZapyska.Place place,
+            TabelZaluchenosti.JobValue.Registry jobs, out string jobKey)
+        {
+            switch (place.Location)
+            {
+                case StroyovaZapyska.LocationType.БЧ:
+                    jobKey = nameof(jobs.BATTALION_DEFENSE_SECTOR);
+                    return jobs.BATTALION_DEFENSE_SECTOR;
+                case StroyovaZapyska.LocationType.РЗ:
+                    jobKey = nameof(jobs.COMBAT_SUPPORT);
+                    return jobs.COMBAT_SUPPORT;
+            }
+
+            switch ((place.LocationName ?? string.Empty).Trim())
+            {
+                case "Відрядження":
+                    jobKey = nameof(jobs.TRIP);
+                    return jobs.TRIP;
+                case "Відпустка щорічна":
+                case "Відпустка ЗСО":
+                case "Відпустка ЗСЗ":
+                    jobKey = nameof(jobs.VACATION);
+                    return jobs.VACATION;
+                case "СЗЧ":
+                    jobKey = nameof(jobs.AWOL);
+                    return jobs.AWOL;
+                case "Лікування (до 10 діб)":
+                    jobKey = nameof(jobs.SHORT_TERM_TREATMENT);
+                    return jobs.SHORT_TERM_TREATMENT;
+                case "Лікування довготривале":
+                    jobKey = nameof(jobs.LONG_TERM_TREATMENT);
+                    return jobs.LONG_TERM_TREATMENT;
+                default:
+                    jobKey = null;
+                    return null;
             }
         }
 

@@ -838,6 +838,8 @@ namespace ZsuTools.Tables
                 public JobValue BATTALION_DEFENSE_SECTOR { get; }
                 public JobValue COMBAT_SUPPORT { get; }
                 public JobValue VACATION { get; }
+                public JobValue SHORT_TERM_TREATMENT { get; }
+                public JobValue LONG_TERM_TREATMENT { get; }
                 public JobValue TRIP { get; }
                 public JobValue AWOL { get; }
 
@@ -851,6 +853,8 @@ namespace ZsuTools.Tables
                     BATTALION_DEFENSE_SECTOR = Create(values, nameof(BATTALION_DEFENSE_SECTOR));
                     COMBAT_SUPPORT = Create(values, nameof(COMBAT_SUPPORT));
                     VACATION = Create(values, nameof(VACATION));
+                    SHORT_TERM_TREATMENT = Create(values, nameof(SHORT_TERM_TREATMENT));
+                    LONG_TERM_TREATMENT = Create(values, nameof(LONG_TERM_TREATMENT));
                     TRIP = Create(values, nameof(TRIP));
                     AWOL = Create(values, nameof(AWOL));
 
@@ -859,6 +863,8 @@ namespace ZsuTools.Tables
                         BATTALION_DEFENSE_SECTOR,
                         COMBAT_SUPPORT,
                         VACATION,
+                        SHORT_TERM_TREATMENT,
+                        LONG_TERM_TREATMENT,
                         TRIP,
                         AWOL
                     };
