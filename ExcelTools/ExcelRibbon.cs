@@ -455,10 +455,25 @@ namespace ZsuTools
 
                     int written = tz.Save();
 
-                    MessageBox.Show(ExcelWindow.Instance,
-                        $"Залученість заповнено зі Стройової Записки на {sz.Date:dd.MM.yyyy}.\n" +
-                        $"Оброблено осіб: {assignments.Count}, змінено комірок: {written}.",
-                        "Табель залученості");
+                    var result = new StringBuilder();
+                    result.AppendLine($"Залученість заповнено зі Стройової Записки на {sz.Date:dd.MM.yyyy}.");
+                    result.AppendLine($"Оброблено осіб: {assignments.Count}, змінено комірок: {written}.");
+
+                    var warnings = tz.GetPresenceJobWarnings();
+                    if (warnings.Count > 0)
+                    {
+                        result.AppendLine();
+                        result.AppendLine(
+                            $"Увага! Наявність не узгоджується із Залученістю ({warnings.Count}), перевірте:");
+                        foreach (var warning in warnings)
+                        {
+                            result.AppendLine(warning);
+                        }
+                    }
+
+                    MessageBox.Show(ExcelWindow.Instance, result.ToString(), "Табель залученості",
+                        MessageBoxButtons.OK,
+                        warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
                 }
             }
             catch (Exception e)
