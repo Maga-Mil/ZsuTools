@@ -12,13 +12,6 @@ namespace ZsuTools.Tables
 {
     public class TabelZaluchenosti
     {
-        // Номери колонок аркуша «Табелювання» (1-based)
-        private const int ColPersonId = 6;
-        private const int ColJob = 12;
-        private const int ColJobDetails = 13;
-
-        private readonly List<Item> items = new List<Item>();
-
         /// <summary>
         /// Записи Табеля. Структурні зміни (додавання/видалення) не підтримуються; змінювати можна лише
         /// поля записів (Job, JobDetails), після чого викликати <see cref="Save"/>.
@@ -29,14 +22,9 @@ namespace ZsuTools.Tables
         public PresenceValue.Registry Presence { get; private set; }
 
         /// <summary>
-        /// Знімок записів на момент читання (або останнього збереження): snapshot[i] — копія items[i].
+        /// Чи є зміни Job / JobDetails відносно прочитаного (або останнього збереженого) стану.
         /// </summary>
-        private List<Item> snapshot = new List<Item>();
-
-        /// <summary>
-        /// Аркуш, з якого прочитано дані через COM. Для ClosedXML-джерел — null (збереження поки не підтримується).
-        /// </summary>
-        private readonly Worksheet comSheet;
+        public bool HasChanges => GetChanges().Count > 0;
 
         public TabelZaluchenosti(Workbook wb)
         {
@@ -84,32 +72,6 @@ namespace ZsuTools.Tables
                 Load(workbook);
             }
         }
-
-        private void Load(XLWorkbook workbook)
-        {
-            var jobsValues = GetDictionaryFromNamedRanges(workbook, "InvVal[val_code]", "InvVal[val_name]");
-            Jobs = new JobValue.Registry(jobsValues);
-
-            var presenceValues = GetDictionaryFromNamedRanges(workbook, "PersonVal[val_code]", "PersonVal[val_name]");
-            Presence = new PresenceValue.Registry(presenceValues);
-
-            var mainWorkSheet = workbook.Worksheets.FirstOrDefault(ws =>
-                ws.Name.IndexOf("Табелювання", StringComparison.InvariantCultureIgnoreCase) >= 0);
-            if (mainWorkSheet == null)
-            {
-                throw new ArgumentException("Не знайдено аркуш 'Табелювання', це не схоже на Табель Залученості.");
-            }
-
-            items.AddRange(ReadTableFromWorksheet(mainWorkSheet, Jobs, Presence));
-            TakeSnapshot();
-        }
-
-        #region Changes tracking / Save
-
-        /// <summary>
-        /// Чи є зміни Job / JobDetails відносно прочитаного (або останнього збереженого) стану.
-        /// </summary>
-        public bool HasChanges => GetChanges().Count > 0;
 
         /// <summary>
         /// Записує у аркуш «Табелювання» відкритої книги лише ті комірки Job / JobDetails, що змінилися.
@@ -165,6 +127,241 @@ namespace ZsuTools.Tables
             TakeSnapshot();
             return changes.Count;
         }
+
+        public class Item
+        {
+            internal Item(Guid personId)
+            {
+                PersonId = personId;
+            }
+
+            public int LineNumber { get; set; }
+            public int UnitCode { get; set; }
+            public string UnitName { get; set; }
+            public int PositionId { get; set; }
+            public string PositionName { get; set; }
+
+            /// <summary>
+            /// ID особи — ключ для пошуку рядка на аркуші під час збереження, тому змінювати його не можна.
+            /// </summary>
+            public Guid PersonId { get; }
+
+            public string PersonRank { get; set; }
+            public string PersonFullName { get; set; }
+            public ulong PersonTaxCode { get; set; }
+            public PresenceValue Presence { get; set; }
+            public JobValue Job { get; set; }
+            public string JobDetails { get; set; }
+            public DateTimeOffset? JobStartDate { get; set; }
+            public TimeSpan? JobStartTime { get; set; }
+            public DateTimeOffset? JobFinishDate { get; set; }
+            public TimeSpan? JobFinishTime { get; set; }
+
+            internal Item Clone() => (Item)MemberwiseClone();
+        }
+
+        public sealed class JobValue
+        {
+            // Приватний конструктор — створювати екземпляри може тільки сам клас/фабрика
+            private JobValue(string code, string value)
+            {
+                Code = code;
+                Value = value;
+            }
+
+            /// <summary>
+            /// Внутрішній код/ідентифікатор елемента (наприклад, "BATTALION_DEFENSE_SECTOR")
+            /// </summary>
+            public string Code { get; }
+
+            /// <summary>
+            /// Локалізоване або зчитане з Excel значення
+            /// </summary>
+            public string Value { get; }
+
+            // Константні/дефолтні екземпляри (статичні, тому не викликають рекурсію екземплярів)
+            public static readonly JobValue Empty = new JobValue(nameof(Empty), string.Empty);
+            public static readonly JobValue Unknown = new JobValue(nameof(Unknown), "Unknown");
+
+            public override string ToString() => Value;
+
+            public class Registry
+            {
+                public JobValue BATTALION_DEFENSE_SECTOR { get; }
+                public JobValue COMBAT_SUPPORT { get; }
+                public JobValue VACATION { get; }
+                public JobValue SHORT_TERM_TREATMENT { get; }
+                public JobValue LONG_TERM_TREATMENT { get; }
+                public JobValue TRIP { get; }
+                public JobValue AWOL { get; }
+
+                public JobValue Empty => JobValue.Empty;
+                public JobValue Unknown => JobValue.Unknown;
+
+                public IReadOnlyList<JobValue> AllValues { get; }
+
+                public Registry(IReadOnlyDictionary<string, string> values)
+                {
+                    BATTALION_DEFENSE_SECTOR = Create(values, nameof(BATTALION_DEFENSE_SECTOR));
+                    COMBAT_SUPPORT = Create(values, nameof(COMBAT_SUPPORT));
+                    VACATION = Create(values, nameof(VACATION));
+                    SHORT_TERM_TREATMENT = Create(values, nameof(SHORT_TERM_TREATMENT));
+                    LONG_TERM_TREATMENT = Create(values, nameof(LONG_TERM_TREATMENT));
+                    TRIP = Create(values, nameof(TRIP));
+                    AWOL = Create(values, nameof(AWOL));
+
+                    AllValues = new[]
+                    {
+                        BATTALION_DEFENSE_SECTOR,
+                        COMBAT_SUPPORT,
+                        VACATION,
+                        SHORT_TERM_TREATMENT,
+                        LONG_TERM_TREATMENT,
+                        TRIP,
+                        AWOL
+                    };
+                }
+
+                private static JobValue Create(IReadOnlyDictionary<string, string> dict, string key)
+                {
+                    return dict.TryGetValue(key, out var val)
+                        ? new JobValue(key, val)
+                        : JobValue.Unknown;
+                }
+            }
+        }
+
+        public class PresenceValue
+        {
+            private PresenceValue(string value)
+            {
+                Value = value;
+            }
+
+            public string Value { get; }
+
+            public override string ToString()
+            {
+                return Value;
+            }
+
+            public class Registry
+            {
+                /// <summary>
+                /// В наявності
+                /// </summary>
+                public readonly PresenceValue PRESENT;
+
+                /// <summary>
+                /// Відпустка щорічна основна
+                /// </summary>
+                public readonly PresenceValue VACATION_ANNUAL;
+
+                /// <summary>
+                /// Відпустка за сімейними обставинами
+                /// </summary>
+                public readonly PresenceValue VACATION_FAMILY_REASONS;
+
+                /// <summary>
+                /// Відпустка на лікування після поранення, травми, контузії
+                /// </summary>
+                public readonly PresenceValue VACATION_MEDICAL;
+
+                /// <summary>
+                /// Відпустка на лікування у зв’язку з хворобою
+                /// </summary>
+                public readonly PresenceValue VACATION_MEDICAL_SICK;
+
+                /// <summary>
+                /// Відрядження строкове
+                /// </summary>
+                public readonly PresenceValue TRIP_FOR_PERIOD;
+
+                /// <summary>
+                /// Відрядження до розпорядження
+                /// </summary>
+                public readonly PresenceValue TRIP_UNTIL_DIRECTIVE;
+
+                /// <summary>
+                /// Відрядження на навчання в НЦ, ВВНЗ
+                /// </summary>
+                public readonly PresenceValue TRIP_FOR_EDUCATION;
+
+                /// <summary>
+                /// СЗЧ
+                /// </summary>
+                public readonly PresenceValue AWOL;
+
+                public readonly PresenceValue Empty = new PresenceValue(string.Empty);
+                public readonly PresenceValue Unknown = new PresenceValue("Unknown");
+
+                public readonly IReadOnlyList<PresenceValue> AllValues;
+
+                public Registry(IReadOnlyDictionary<string, string> allValues)
+                {
+                    PRESENT = new PresenceValue(allValues[nameof(PRESENT)]);
+                    VACATION_ANNUAL = new PresenceValue(allValues[nameof(VACATION_ANNUAL)]);
+                    VACATION_FAMILY_REASONS = new PresenceValue(allValues[nameof(VACATION_FAMILY_REASONS)]);
+                    VACATION_MEDICAL = new PresenceValue(allValues[nameof(VACATION_MEDICAL)]);
+                    VACATION_MEDICAL_SICK = new PresenceValue(allValues[nameof(VACATION_MEDICAL_SICK)]);
+                    TRIP_FOR_PERIOD = new PresenceValue(allValues[nameof(TRIP_FOR_PERIOD)]);
+                    TRIP_UNTIL_DIRECTIVE = new PresenceValue(allValues[nameof(TRIP_UNTIL_DIRECTIVE)]);
+                    TRIP_FOR_EDUCATION = new PresenceValue(allValues[nameof(TRIP_FOR_EDUCATION)]);
+                    AWOL = new PresenceValue(allValues[nameof(AWOL)]);
+
+                    AllValues = new[]
+                    {
+                        PRESENT,
+                        VACATION_ANNUAL,
+                        VACATION_FAMILY_REASONS,
+                        VACATION_MEDICAL,
+                        VACATION_MEDICAL_SICK,
+                        TRIP_FOR_PERIOD,
+                        TRIP_UNTIL_DIRECTIVE,
+                        TRIP_FOR_EDUCATION,
+                        AWOL
+                    };
+                }
+            }
+        }
+
+        // Номери колонок аркуша «Табелювання» (1-based)
+        private const int ColPersonId = 6;
+        private const int ColJob = 12;
+        private const int ColJobDetails = 13;
+
+        private readonly List<Item> items = new List<Item>();
+
+        /// <summary>
+        /// Знімок записів на момент читання (або останнього збереження): snapshot[i] — копія items[i].
+        /// </summary>
+        private List<Item> snapshot = new List<Item>();
+
+        /// <summary>
+        /// Аркуш, з якого прочитано дані через COM. Для ClosedXML-джерел — null (збереження поки не підтримується).
+        /// </summary>
+        private readonly Worksheet comSheet;
+
+        private void Load(XLWorkbook workbook)
+        {
+            var jobsValues = GetDictionaryFromNamedRanges(workbook, "InvVal[val_code]", "InvVal[val_name]");
+            Jobs = new JobValue.Registry(jobsValues);
+
+            var presenceValues = GetDictionaryFromNamedRanges(workbook, "PersonVal[val_code]", "PersonVal[val_name]");
+            Presence = new PresenceValue.Registry(presenceValues);
+
+            var mainWorkSheet = workbook.Worksheets.FirstOrDefault(ws =>
+                ws.Name.IndexOf("Табелювання", StringComparison.InvariantCultureIgnoreCase) >= 0);
+            if (mainWorkSheet == null)
+            {
+                throw new ArgumentException("Не знайдено аркуш 'Табелювання', це не схоже на Табель Залученості.");
+            }
+
+            items.AddRange(ReadTableFromWorksheet(mainWorkSheet, Jobs, Presence));
+            TakeSnapshot();
+        }
+
+        #region Changes tracking / Save
 
         /// <summary>
         /// Будує відповідність «ID особи → номер рядка аркуша» за тими ж межами, що й читання:
@@ -388,6 +585,8 @@ namespace ZsuTools.Tables
 
         #endregion
 
+        #region Reading: COM
+
         /// <summary>
         /// Reads table data directly from the provided <see cref="Worksheet"/> instance parameter.
         /// </summary>
@@ -439,6 +638,121 @@ namespace ZsuTools.Tables
 
             return results;
         }
+
+        /// <summary>
+        /// Зчитує дані з двох іменованих діапазонів у Dictionary через COM Interop для конкретної книги.
+        /// Безпечно викликається з Ribbon UI та інших COM-подій.
+        /// </summary>
+        /// <param name="wb">Об'єкт робочої книги Excel (Workbook)</param>
+        /// <param name="keyRangeName">Назва діапазону/колонки для ключів (наприклад, "PersonVal[val_code]")</param>
+        /// <param name="valRangeName">Назва діапазону/колонки для значень (наприклад, "PersonVal[val_name]")</param>
+        private static Dictionary<string, string> GetDictionaryFromNamedRanges(Workbook wb, string keyRangeName,
+            string valRangeName)
+        {
+            var result = new Dictionary<string, string>();
+
+            if (wb == null)
+            {
+                throw new ArgumentNullException(nameof(wb), "Передано порожній об'єкт Workbook.");
+            }
+
+            try
+            {
+                Range keyRange = ResolveRange(wb, keyRangeName);
+                Range valRange = ResolveRange(wb, valRangeName);
+
+                if (keyRange != null && valRange != null)
+                {
+                    object keysObj = keyRange.Value2;
+                    object valsObj = valRange.Value2;
+
+                    // Масив з кількох комірок (двовимірний 1-based масив у COM)
+                    if (keysObj is object[,] keysArray && valsObj is object[,] valsArray)
+                    {
+                        int rowsCount = keysArray.GetLength(0);
+
+                        for (int i = 1; i <= rowsCount; i++)
+                        {
+                            string key = keysArray[i, 1]?.ToString()?.Trim();
+                            string val = valsArray[i, 1]?.ToString()?.Trim();
+
+                            if (!string.IsNullOrEmpty(key) && !result.ContainsKey(key))
+                            {
+                                result.Add(key, val ?? string.Empty);
+                            }
+                        }
+                    }
+                    // Випадок, якщо в діапазоні лише 1 комірка
+                    else if (keysObj != null)
+                    {
+                        string key = keysObj.ToString()?.Trim();
+                        string val = valsObj?.ToString()?.Trim();
+
+                        if (!string.IsNullOrEmpty(key))
+                        {
+                            result[key] = val ?? string.Empty;
+                        }
+                    }
+                }
+            }
+            catch (System.Runtime.InteropServices.COMException ex)
+            {
+                System.Windows.Forms.MessageBox.Show(
+                    $"Помилка зчитування діапазонів у книзі '{wb.Name}': {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                System.Windows.Forms.MessageBox.Show($"Загальна помилка: {ex.Message}");
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Отримує Range з книги: підтримує класичні Named Ranges та структурні посилання розумних таблиць.
+        /// </summary>
+        private static Range ResolveRange(Workbook wb, string rangeExpression)
+        {
+            var app = (Application)ExcelDnaUtil.Application;
+
+            try
+            {
+                // 1. Пробуємо знайти як звичайне ім'я в wb.Names
+                Name nameObj = wb.Names.Item(rangeExpression);
+                return nameObj.RefersToRange;
+            }
+            catch
+            {
+                // 2. Якщо це структурне посилання (наприклад, "PersonVal[val_code]"), 
+                // використовуємо app.Evaluate, активувавши контекст потрібної книги
+                try
+                {
+                    // Переконуємося, що Evaluate обчислюється для потрібної книги
+                    string qualifiedExpression = $"'{wb.Name}'!{rangeExpression}";
+                    object evaluated = app.Evaluate(qualifiedExpression);
+
+                    if (evaluated is Range rng)
+                    {
+                        return rng;
+                    }
+                }
+                catch
+                {
+                    // Резервний варіант: виклик через прямого власника
+                    object evaluated = app.Evaluate(rangeExpression);
+                    if (evaluated is Range rng)
+                    {
+                        return rng;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        #endregion
+
+        #region Parsing: cell values (спільне для COM і ClosedXML)
 
         /// <summary>
         /// Збирає запис з значень комірок рядка (спільне для COM і ClosedXML). Номер колонки — 1-based.
@@ -623,354 +937,6 @@ namespace ZsuTools.Tables
             return null;
         }
 
-        public static List<string> GetNamedRangeValues(Workbook workbook, string namedRangeName)
-        {
-            var list = new List<string>();
-            if (workbook == null || string.IsNullOrWhiteSpace(namedRangeName)) return list;
-
-            try
-            {
-                Name namedRange = workbook.Names.Item(namedRangeName);
-                Range range = namedRange?.RefersToRange;
-                if (range != null)
-                {
-                    object[,] values = range.Value2 as object[,];
-                    if (values != null)
-                    {
-                        int rows = values.GetLength(0);
-                        int cols = values.GetLength(1);
-                        for (int r = 1; r <= rows; r++)
-                        {
-                            for (int c = 1; c <= cols; c++)
-                            {
-                                string val = values[r, c]?.ToString()?.Trim();
-                                if (!string.IsNullOrEmpty(val))
-                                {
-                                    list.Add(val);
-                                }
-                            }
-                        }
-                    }
-                    else if (range.Value2 != null)
-                    {
-                        list.Add(range.Value2.ToString().Trim());
-                    }
-                }
-            }
-            catch
-            {
-                // Named range not found or invalid formula reference
-            }
-
-            return list;
-        }
-
-        /// <summary>
-        /// Зчитує дані з двох іменованих діапазонів у Dictionary через COM Interop для конкретної книги.
-        /// Безпечно викликається з Ribbon UI та інших COM-подій.
-        /// </summary>
-        /// <param name="wb">Об'єкт робочої книги Excel (Workbook)</param>
-        /// <param name="keyRangeName">Назва діапазону/колонки для ключів (наприклад, "PersonVal[val_code]")</param>
-        /// <param name="valRangeName">Назва діапазону/колонки для значень (наприклад, "PersonVal[val_name]")</param>
-        private static Dictionary<string, string> GetDictionaryFromNamedRanges(Workbook wb, string keyRangeName,
-            string valRangeName)
-        {
-            var result = new Dictionary<string, string>();
-
-            if (wb == null)
-            {
-                throw new ArgumentNullException(nameof(wb), "Передано порожній об'єкт Workbook.");
-            }
-
-            try
-            {
-                Range keyRange = ResolveRange(wb, keyRangeName);
-                Range valRange = ResolveRange(wb, valRangeName);
-
-                if (keyRange != null && valRange != null)
-                {
-                    object keysObj = keyRange.Value2;
-                    object valsObj = valRange.Value2;
-
-                    // Масив з кількох комірок (двовимірний 1-based масив у COM)
-                    if (keysObj is object[,] keysArray && valsObj is object[,] valsArray)
-                    {
-                        int rowsCount = keysArray.GetLength(0);
-
-                        for (int i = 1; i <= rowsCount; i++)
-                        {
-                            string key = keysArray[i, 1]?.ToString()?.Trim();
-                            string val = valsArray[i, 1]?.ToString()?.Trim();
-
-                            if (!string.IsNullOrEmpty(key) && !result.ContainsKey(key))
-                            {
-                                result.Add(key, val ?? string.Empty);
-                            }
-                        }
-                    }
-                    // Випадок, якщо в діапазоні лише 1 комірка
-                    else if (keysObj != null)
-                    {
-                        string key = keysObj.ToString()?.Trim();
-                        string val = valsObj?.ToString()?.Trim();
-
-                        if (!string.IsNullOrEmpty(key))
-                        {
-                            result[key] = val ?? string.Empty;
-                        }
-                    }
-                }
-            }
-            catch (System.Runtime.InteropServices.COMException ex)
-            {
-                System.Windows.Forms.MessageBox.Show(
-                    $"Помилка зчитування діапазонів у книзі '{wb.Name}': {ex.Message}");
-            }
-            catch (Exception ex)
-            {
-                System.Windows.Forms.MessageBox.Show($"Загальна помилка: {ex.Message}");
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// Отримує Range з книги: підтримує класичні Named Ranges та структурні посилання розумних таблиць.
-        /// </summary>
-        private static Range ResolveRange(Workbook wb, string rangeExpression)
-        {
-            var app = (Application)ExcelDnaUtil.Application;
-
-            try
-            {
-                // 1. Пробуємо знайти як звичайне ім'я в wb.Names
-                Name nameObj = wb.Names.Item(rangeExpression);
-                return nameObj.RefersToRange;
-            }
-            catch
-            {
-                // 2. Якщо це структурне посилання (наприклад, "PersonVal[val_code]"), 
-                // використовуємо app.Evaluate, активувавши контекст потрібної книги
-                try
-                {
-                    // Переконуємося, що Evaluate обчислюється для потрібної книги
-                    string qualifiedExpression = $"'{wb.Name}'!{rangeExpression}";
-                    object evaluated = app.Evaluate(qualifiedExpression);
-
-                    if (evaluated is Range rng)
-                    {
-                        return rng;
-                    }
-                }
-                catch
-                {
-                    // Резервний варіант: виклик через прямого власника
-                    object evaluated = app.Evaluate(rangeExpression);
-                    if (evaluated is Range rng)
-                    {
-                        return rng;
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        public class Item
-        {
-            internal Item(Guid personId)
-            {
-                PersonId = personId;
-            }
-
-            public int LineNumber { get; set; }
-            public int UnitCode { get; set; }
-            public string UnitName { get; set; }
-            public int PositionId { get; set; }
-            public string PositionName { get; set; }
-
-            /// <summary>
-            /// ID особи — ключ для пошуку рядка на аркуші під час збереження, тому змінювати його не можна.
-            /// </summary>
-            public Guid PersonId { get; }
-
-            public string PersonRank { get; set; }
-            public string PersonFullName { get; set; }
-            public ulong PersonTaxCode { get; set; }
-            public PresenceValue Presence { get; set; }
-            public JobValue Job { get; set; }
-            public string JobDetails { get; set; }
-            public DateTimeOffset? JobStartDate { get; set; }
-            public TimeSpan? JobStartTime { get; set; }
-            public DateTimeOffset? JobFinishDate { get; set; }
-            public TimeSpan? JobFinishTime { get; set; }
-
-            internal Item Clone() => (Item)MemberwiseClone();
-        }
-
-        public sealed class JobValue
-        {
-            // Приватний конструктор — створювати екземпляри може тільки сам клас/фабрика
-            private JobValue(string code, string value)
-            {
-                Code = code;
-                Value = value;
-            }
-
-            /// <summary>
-            /// Внутрішній код/ідентифікатор елемента (наприклад, "BATTALION_DEFENSE_SECTOR")
-            /// </summary>
-            public string Code { get; }
-
-            /// <summary>
-            /// Локалізоване або зчитане з Excel значення
-            /// </summary>
-            public string Value { get; }
-
-            // Константні/дефолтні екземпляри (статичні, тому не викликають рекурсію екземплярів)
-            public static readonly JobValue Empty = new JobValue(nameof(Empty), string.Empty);
-            public static readonly JobValue Unknown = new JobValue(nameof(Unknown), "Unknown");
-
-            public override string ToString() => Value;
-
-            public class Registry
-            {
-                public JobValue BATTALION_DEFENSE_SECTOR { get; }
-                public JobValue COMBAT_SUPPORT { get; }
-                public JobValue VACATION { get; }
-                public JobValue SHORT_TERM_TREATMENT { get; }
-                public JobValue LONG_TERM_TREATMENT { get; }
-                public JobValue TRIP { get; }
-                public JobValue AWOL { get; }
-
-                public JobValue Empty => JobValue.Empty;
-                public JobValue Unknown => JobValue.Unknown;
-
-                public IReadOnlyList<JobValue> AllValues { get; }
-
-                public Registry(IReadOnlyDictionary<string, string> values)
-                {
-                    BATTALION_DEFENSE_SECTOR = Create(values, nameof(BATTALION_DEFENSE_SECTOR));
-                    COMBAT_SUPPORT = Create(values, nameof(COMBAT_SUPPORT));
-                    VACATION = Create(values, nameof(VACATION));
-                    SHORT_TERM_TREATMENT = Create(values, nameof(SHORT_TERM_TREATMENT));
-                    LONG_TERM_TREATMENT = Create(values, nameof(LONG_TERM_TREATMENT));
-                    TRIP = Create(values, nameof(TRIP));
-                    AWOL = Create(values, nameof(AWOL));
-
-                    AllValues = new[]
-                    {
-                        BATTALION_DEFENSE_SECTOR,
-                        COMBAT_SUPPORT,
-                        VACATION,
-                        SHORT_TERM_TREATMENT,
-                        LONG_TERM_TREATMENT,
-                        TRIP,
-                        AWOL
-                    };
-                }
-
-                private static JobValue Create(IReadOnlyDictionary<string, string> dict, string key)
-                {
-                    return dict.TryGetValue(key, out var val)
-                        ? new JobValue(key, val)
-                        : JobValue.Unknown;
-                }
-            }
-        }
-
-        public class PresenceValue
-        {
-            private PresenceValue(string value)
-            {
-                Value = value;
-            }
-
-            public string Value { get; }
-
-            public override string ToString()
-            {
-                return Value;
-            }
-
-            public class Registry
-            {
-                /// <summary>
-                /// В наявності
-                /// </summary>
-                public readonly PresenceValue PRESENT;
-
-                /// <summary>
-                /// Відпустка щорічна основна
-                /// </summary>
-                public readonly PresenceValue VACATION_ANNUAL;
-
-                /// <summary>
-                /// Відпустка за сімейними обставинами
-                /// </summary>
-                public readonly PresenceValue VACATION_FAMILY_REASONS;
-
-                /// <summary>
-                /// Відпустка на лікування після поранення, травми, контузії
-                /// </summary>
-                public readonly PresenceValue VACATION_MEDICAL;
-
-                /// <summary>
-                /// Відпустка на лікування у зв’язку з хворобою
-                /// </summary>
-                public readonly PresenceValue VACATION_MEDICAL_SICK;
-
-                /// <summary>
-                /// Відрядження строкове
-                /// </summary>
-                public readonly PresenceValue TRIP_FOR_PERIOD;
-
-                /// <summary>
-                /// Відрядження до розпорядження
-                /// </summary>
-                public readonly PresenceValue TRIP_UNTIL_DIRECTIVE;
-
-                /// <summary>
-                /// Відрядження на навчання в НЦ, ВВНЗ
-                /// </summary>
-                public readonly PresenceValue TRIP_FOR_EDUCATION;
-
-                /// <summary>
-                /// СЗЧ
-                /// </summary>
-                public readonly PresenceValue AWOL;
-
-                public readonly PresenceValue Empty = new PresenceValue(string.Empty);
-                public readonly PresenceValue Unknown = new PresenceValue("Unknown");
-
-                public readonly IReadOnlyList<PresenceValue> AllValues;
-
-                public Registry(IReadOnlyDictionary<string, string> allValues)
-                {
-                    PRESENT = new PresenceValue(allValues[nameof(PRESENT)]);
-                    VACATION_ANNUAL = new PresenceValue(allValues[nameof(VACATION_ANNUAL)]);
-                    VACATION_FAMILY_REASONS = new PresenceValue(allValues[nameof(VACATION_FAMILY_REASONS)]);
-                    VACATION_MEDICAL = new PresenceValue(allValues[nameof(VACATION_MEDICAL)]);
-                    VACATION_MEDICAL_SICK = new PresenceValue(allValues[nameof(VACATION_MEDICAL_SICK)]);
-                    TRIP_FOR_PERIOD = new PresenceValue(allValues[nameof(TRIP_FOR_PERIOD)]);
-                    TRIP_UNTIL_DIRECTIVE = new PresenceValue(allValues[nameof(TRIP_UNTIL_DIRECTIVE)]);
-                    TRIP_FOR_EDUCATION = new PresenceValue(allValues[nameof(TRIP_FOR_EDUCATION)]);
-                    AWOL = new PresenceValue(allValues[nameof(AWOL)]);
-
-                    AllValues = new[]
-                    {
-                        PRESENT,
-                        VACATION_ANNUAL,
-                        VACATION_FAMILY_REASONS,
-                        VACATION_MEDICAL,
-                        VACATION_MEDICAL_SICK,
-                        TRIP_FOR_PERIOD,
-                        TRIP_UNTIL_DIRECTIVE,
-                        TRIP_FOR_EDUCATION,
-                        AWOL
-                    };
-                }
-            }
-        }
+        #endregion
     }
 }

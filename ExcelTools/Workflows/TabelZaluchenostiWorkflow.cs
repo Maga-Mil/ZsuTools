@@ -15,11 +15,6 @@ namespace ZsuTools.Workflows
     /// </summary>
     public class TabelZaluchenostiWorkflow
     {
-        private const string Caption = "Табель залученості";
-        private const int MaxWarningsInMessage = 25;
-
-        private readonly Application excelApp;
-
         public TabelZaluchenostiWorkflow(Application excelApp)
         {
             this.excelApp = excelApp;
@@ -58,6 +53,11 @@ namespace ZsuTools.Workflows
 
             ApplyAndSave(tz, sz, assignments);
         }
+
+        private const string Caption = "Табель залученості";
+        private const int MaxWarningsInMessage = 25;
+
+        private readonly Application excelApp;
 
         private static bool TryLoadTabel(Workbook workBook, out TabelZaluchenosti tz)
         {

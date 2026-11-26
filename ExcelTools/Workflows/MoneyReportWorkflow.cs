@@ -21,6 +21,70 @@ namespace ZsuTools.Workflows
     /// </summary>
     public class MoneyReportWorkflow
     {
+        public MoneyReportWorkflow(Application excelApp)
+        {
+            this.excelApp = excelApp;
+        }
+
+        /// <summary>
+        /// Генерує рапорт на премію у Word документі (DocX) на основі таблиці ООС у ЄЖООС книзі.
+        /// </summary>
+        public void CreatePremReport(Workbook workbook)
+        {
+            if (!TryGetEjoosSheets(workbook, PremCaption, out var sheets))
+            {
+                return;
+            }
+
+            var oosTable = new OOSTable(sheets.Oos);
+
+            if (!UserDialogs.TryChooseFolder("Оберіть папку для збереження рапорту на премію",
+                    out var selectedFolder))
+            {
+                return;
+            }
+
+            var reportPath = Path.Combine(selectedFolder, "рапорт_на_премію.docx");
+            WritePremDocument(oosTable, reportPath);
+
+            Process.Start(new ProcessStartInfo(reportPath) { UseShellExecute = true });
+        }
+
+        /// <summary>
+        /// Генерує у новому документі Word таблиці рапорту на додаткову винагороду (100k / 30k / 10k)
+        /// на основі аркушів «ШПО» і «Табель» ЄЖООС книги.
+        /// </summary>
+        public void CreateAddRewardReport(Workbook workbook)
+        {
+            try
+            {
+                if (!TryGetEjoosSheets(workbook, AddRewardCaption, out var sheets))
+                {
+                    return;
+                }
+
+                var positions = PositionsTable.ReadPositionsTable(sheets.Positions);
+
+                if (!TryReadTabel(sheets.Tabel, out var tabelTable))
+                {
+                    return;
+                }
+
+                var tabelPositions = MatchPositions(tabelTable, positions);
+                var reportDate = ReadReportDate(sheets.Tabel);
+
+                WriteAddRewardDocument(tabelPositions, reportDate);
+
+                UserDialogs.ShowMessage(
+                    "Успішно створено таблиці грошового рапорта в окремий документ Word. Додайте текст рапорта та збережіть документ.",
+                    AddRewardCaption, MessageBoxIcon.Information);
+            }
+            finally
+            {
+                excelApp.StatusBar = false;
+            }
+        }
+
         private const string PremCaption = "Рапорт на премію";
         private const string AddRewardCaption = "Рапорт на ГЗ";
 
@@ -29,11 +93,6 @@ namespace ZsuTools.Workflows
 
         private readonly Application excelApp;
         private int updateStateIndex;
-
-        public MoneyReportWorkflow(Application excelApp)
-        {
-            this.excelApp = excelApp;
-        }
 
         /// <summary>
         /// Спільна для всіх рапортів перевірка: книга відкрита і є ЄЖООС, тобто містить аркуші
@@ -79,30 +138,6 @@ namespace ZsuTools.Workflows
         }
 
         #region Рапорт на премію
-
-        /// <summary>
-        /// Генерує рапорт на премію у Word документі (DocX) на основі таблиці ООС у ЄЖООС книзі.
-        /// </summary>
-        public void CreatePremReport(Workbook workbook)
-        {
-            if (!TryGetEjoosSheets(workbook, PremCaption, out var sheets))
-            {
-                return;
-            }
-
-            var oosTable = new OOSTable(sheets.Oos);
-
-            if (!UserDialogs.TryChooseFolder("Оберіть папку для збереження рапорту на премію",
-                    out var selectedFolder))
-            {
-                return;
-            }
-
-            var reportPath = Path.Combine(selectedFolder, "рапорт_на_премію.docx");
-            WritePremDocument(oosTable, reportPath);
-
-            Process.Start(new ProcessStartInfo(reportPath) { UseShellExecute = true });
-        }
 
         private static void WritePremDocument(OOSTable oosTable, string reportPath)
         {
@@ -161,41 +196,6 @@ namespace ZsuTools.Workflows
         #endregion
 
         #region Рапорт на додаткову винагороду (100/30)
-
-        /// <summary>
-        /// Генерує у новому документі Word таблиці рапорту на додаткову винагороду (100k / 30k / 10k)
-        /// на основі аркушів «ШПО» і «Табель» ЄЖООС книги.
-        /// </summary>
-        public void CreateAddRewardReport(Workbook workbook)
-        {
-            try
-            {
-                if (!TryGetEjoosSheets(workbook, AddRewardCaption, out var sheets))
-                {
-                    return;
-                }
-
-                var positions = PositionsTable.ReadPositionsTable(sheets.Positions);
-
-                if (!TryReadTabel(sheets.Tabel, out var tabelTable))
-                {
-                    return;
-                }
-
-                var tabelPositions = MatchPositions(tabelTable, positions);
-                var reportDate = ReadReportDate(sheets.Tabel);
-
-                WriteAddRewardDocument(tabelPositions, reportDate);
-
-                UserDialogs.ShowMessage(
-                    "Успішно створено таблиці грошового рапорта в окремий документ Word. Додайте текст рапорта та збережіть документ.",
-                    AddRewardCaption, MessageBoxIcon.Information);
-            }
-            finally
-            {
-                excelApp.StatusBar = false;
-            }
-        }
 
         private static bool TryReadTabel(Worksheet tabelWorksheet, out List<TabelEntry> tabelTable)
         {
