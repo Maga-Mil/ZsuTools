@@ -214,7 +214,7 @@ namespace ZsuTools.Workflows
         /// Зіставляє записи Табеля з посадами ШПО за ПІБ. Особи без посади попадають у рапорт, але з попередженням.
         /// </summary>
         private static List<TabelPositionPair> MatchPositions(List<TabelEntry> tabelTable,
-            List<PositionEntry> positions)
+            List<PositionsTable.Item> positions)
         {
             var tabelPositions = new List<TabelPositionPair>();
             foreach (var entry in tabelTable)
@@ -475,7 +475,7 @@ namespace ZsuTools.Workflows
         private class TabelPositionPair
         {
             public TabelEntry Tabel { get; set; }
-            public PositionEntry Position { get; set; }
+            public PositionsTable.Item Position { get; set; }
         }
 
         #endregion

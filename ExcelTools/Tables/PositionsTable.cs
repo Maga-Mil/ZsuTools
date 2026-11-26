@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using ExcelDna.Integration;
 using Microsoft.Office.Interop.Excel;
@@ -25,14 +26,14 @@ namespace ZsuTools.Tables
         /// Read positions table from the first worksheet whose name contains "ШПО".
         /// Starts at A6 and for each row:
         /// - If cell A has some text: remember the merged value as SubUnit.
-        /// - If cell A is an natural number - its and Position Index: build a PositionEntry from the row:
+        /// - If cell A is an natural number - its and Position Index: build an Item from the row:
         ///     A - Index, B - Name, C - AuthorizedRank, D - MOS, F - Rank, G - FullName
         /// Processing stops when a row has an empty (non-merged) column A.
         /// Returns an empty list when workbook or sheet is not available.
         /// </summary>
-        public static List<PositionEntry> ReadPositionsTable(Worksheet ws)
+        public static List<Item> ReadPositionsTable(Worksheet ws)
         {
-            var result = new List<PositionEntry>();
+            var result = new List<Item>();
 
             if (ws == null)
                 return result;
@@ -98,8 +99,8 @@ namespace ZsuTools.Tables
                         }
                         else
                         {
-                            // Non-merged row — read a PositionEntry
-                            var entry = new PositionEntry();
+                            // Non-merged row — read an Item
+                            var entry = new Item();
 
                             // Index (col A) - try numeric then fallback to parse
                             entry.Index = positionIndex;
@@ -125,12 +126,41 @@ namespace ZsuTools.Tables
                     }
                     finally
                     {
-						if (cellA != null) { Marshal.ReleaseComObject(cellA); cellA = null; }
-						if (cellB != null) { Marshal.ReleaseComObject(cellB); cellB = null; }
-						if (cellC != null) { Marshal.ReleaseComObject(cellC); cellC = null; }
-						if (cellD != null) { Marshal.ReleaseComObject(cellD); cellD = null; }
-						if (cellF != null) { Marshal.ReleaseComObject(cellF); cellF = null; }
-						if (cellG != null) { Marshal.ReleaseComObject(cellG); cellG = null; }
+                        if (cellA != null)
+                        {
+                            Marshal.ReleaseComObject(cellA);
+                            cellA = null;
+                        }
+
+                        if (cellB != null)
+                        {
+                            Marshal.ReleaseComObject(cellB);
+                            cellB = null;
+                        }
+
+                        if (cellC != null)
+                        {
+                            Marshal.ReleaseComObject(cellC);
+                            cellC = null;
+                        }
+
+                        if (cellD != null)
+                        {
+                            Marshal.ReleaseComObject(cellD);
+                            cellD = null;
+                        }
+
+                        if (cellF != null)
+                        {
+                            Marshal.ReleaseComObject(cellF);
+                            cellF = null;
+                        }
+
+                        if (cellG != null)
+                        {
+                            Marshal.ReleaseComObject(cellG);
+                            cellG = null;
+                        }
                     }
                 }
             }
@@ -153,17 +183,6 @@ namespace ZsuTools.Tables
             return result;
         }
 
-        /// <summary>
-        /// Convert a string to sentence case (first letter uppercase, rest lowercase).
-        /// </summary>
-        private static string ToSentenceCase(string text)
-        {
-            if (string.IsNullOrEmpty(text))
-                return text;
-
-            return char.ToUpper(text[0]) + text.Substring(1).ToLower();
-        }
-
         public static bool IsPositionIndex(object cellValue, out int result)
         {
             result = 0;
@@ -173,6 +192,52 @@ namespace ZsuTools.Tables
 
             // Парсимо рядок і перевіряємо, що число більше за нуль (> 0)
             return int.TryParse(strValue, out result) && result > 0;
+        }
+
+        /// <summary>
+        /// Посада зі ШПО (рядок таблиці).
+        /// </summary>
+        [DebuggerDisplay("{Index}-{PersonName}")]
+        public class Item
+        {
+            public int Index { get; set; }
+            public string SubUnit { get; set; }
+
+            /// <summary>
+            /// Посада
+            /// </summary>
+            public string Name { get; set; }
+
+            /// <summary>
+            /// ШПК
+            /// </summary>
+            public string AuthorizedRank { get; set; }
+
+            /// <summary>
+            /// ВОС
+            /// </summary>
+            public string MOS { get; set; }
+
+            /// <summary>
+            /// Звання
+            /// </summary>
+            public string PersonRank { get; set; }
+
+            /// <summary>
+            /// ПІБ
+            /// </summary>
+            public string PersonName { get; set; }
+        }
+
+        /// <summary>
+        /// Convert a string to sentence case (first letter uppercase, rest lowercase).
+        /// </summary>
+        private static string ToSentenceCase(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return text;
+
+            return char.ToUpper(text[0]) + text.Substring(1).ToLower();
         }
     }
 }

@@ -125,7 +125,6 @@
     <Compile Include="GenerateTabel\RankPerson.cs" />
     <Compile Include="GenerateTabel\ResultTableGenerator.cs" />
     <Compile Include="Tables\StroyovaZapyska.cs" />
-    <Compile Include="PositionEntry.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Tabel.cs" />
     <Compile Include="TabelEntry.cs" />
