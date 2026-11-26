@@ -1,13 +1,9 @@
 using System;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using ExcelDna.Integration;
 using ExcelDna.Integration.CustomUI;
-using Xceed.Document.NET;
-using Xceed.Words.NET;
 using ZsuTools.Tables;
 using ZsuTools.UI;
 using ZsuTools.Workflows;
@@ -63,129 +59,34 @@ namespace ZsuTools
         /// <summary>
         /// Сгенерувати рапорт на премію у Word документі на основі таблиці ООС у активному ЄЖООС файлі.
         /// </summary>
-        /// <param name="control"></param>
         public void OnPremRewardClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
-            var workBook = excelApp.ActiveWorkbook;
-            foreach (Microsoft.Office.Interop.Excel.Worksheet workBookSheet in workBook.Sheets)
+            try
             {
-                if (OOSTable.IsOOSTable(workBookSheet))
-                {
-                    //Load ООС table
-                    var oosTable = new OOSTable(workBookSheet);
-
-                    //Open folder dialog
-                    using (FolderBrowserDialog folderDialog = new FolderBrowserDialog())
-                    {
-                        // Optional configuration
-                        folderDialog.Description = "Оберіть папку для збереження рапорту на премію";
-                        folderDialog.SelectedPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-
-                        // Show the dialog and check if the user clicked OK
-                        if (folderDialog.ShowDialog() == DialogResult.OK)
-                        {
-                            var selectedFolder = folderDialog.SelectedPath;
-
-                            //Create report base
-                            var reportPath = Path.Combine(selectedFolder, "рапорт_на_премію.docx");
-                            using (var document = DocX.Create(reportPath))
-                            {
-                                var defaultFont = new Font("Times New Roman");
-                                document.SetDefaultFont(defaultFont, 14);
-                                document.InsertParagraph("рапорт на премію");
-
-                                //Create table
-                                var table = document.AddTable(oosTable.Items.Count + 1, 7);
-                                //table.Design = Xceed.Words.NET.TableDesign.LightShadingAccent1;
-
-                                // Create autonumbered list for first column
-                                var numList = document.AddList(null, 0, ListItemType.Numbered, 1);
-                                for (int i = 0; i < oosTable.Items.Count; i++)
-                                {
-                                    document.AddListItem(numList, "");
-                                }
-
-                                //Add header
-                                table.Rows[0].Cells[0].Paragraphs[0].Append("№ п/п").FontSize(10);
-                                table.Rows[0].Cells[1].Paragraphs[0].Append("Військове звання").FontSize(10);
-                                table.Rows[0].Cells[2].Paragraphs[0].Append("Прізвище, ім’я,\nпо батькові")
-                                    .FontSize(10);
-                                table.Rows[0].Cells[3].Paragraphs[0].Append("Індекс посади").FontSize(10);
-                                table.Rows[0].Cells[4].Paragraphs[0].Append("РНОКПП").FontSize(10);
-                                table.Rows[0].Cells[5].Paragraphs[0].Append("Розмір премії").FontSize(10);
-                                table.Rows[0].Cells[6].Paragraphs[0].Append("Стягнення\n(ким, коли і за що накладено)")
-                                    .FontSize(10);
-
-                                //Add data
-                                for (int i = 0; i < oosTable.Items.Count; i++)
-                                {
-                                    var item = oosTable.Items[i];
-                                    var numberCell = table.Rows[i + 1].Cells[0];
-                                    numberCell.RemoveParagraphAt(0);
-                                    var listItem = numList.Items[i];
-                                    listItem.FontSize(10);
-                                    listItem.Append("").FontSize(10);
-                                    numberCell.InsertParagraph(listItem);
-                                    table.Rows[i + 1].Cells[1].Paragraphs[0].Append(item.Rank.RankName).FontSize(10);
-                                    table.Rows[i + 1].Cells[2].Paragraphs[0].Append(item.Person.ToString())
-                                        .FontSize(10);
-                                    table.Rows[i + 1].Cells[3].Paragraphs[0]
-                                        .Append(item.Position.First().ToString() ?? "").FontSize(10);
-                                    table.Rows[i + 1].Cells[4].Paragraphs[0].Append(item.RNOKPP).FontSize(10);
-                                    table.Rows[i + 1].Cells[5].Paragraphs[0].Append("100%").FontSize(10);
-                                    table.Rows[i + 1].Cells[6].Paragraphs[0].Append("Відсутнє").FontSize(10);
-                                }
-
-                                document.InsertTable(table);
-
-
-                                //Save document
-                                document.Save();
-
-                                Process.Start(new ProcessStartInfo(reportPath) { UseShellExecute = true });
-                            }
-                        }
-                    }
-
-
-                    return;
-                }
+                new MoneyReportWorkflow(excelApp).CreatePremReport(excelApp.ActiveWorkbook);
             }
-
-            MessageBox.Show(ExcelWindow.Instance, $"Не можу знайти таблицю ООС.", "ZSUTools", MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+            catch (Exception e)
+            {
+                UserDialogs.ShowMessage($"Помилка створення рапорту на премію: {e}", "Рапорт на премію",
+                    MessageBoxIcon.Error);
+            }
         }
 
         /// <summary>
         /// Сгенерувати рапорт на додаткову винагороду у Word документі на основі табеля у активному ЄЖООС файлі.
         /// </summary>
-        /// <param name="control"></param>
         public void OnAddRewardClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
             try
             {
-                var workBook = excelApp.ActiveWorkbook;
-                //excelApp.DisplayStatusBar = true;
-
-                void UpdateStatusFunc(String status)
-                {
-                    UpdateStatus(excelApp, status);
-                }
-
-                MoneyReportGenerator.CreateMoney_100_30_Report(workBook, UpdateStatusFunc);
+                new MoneyReportWorkflow(excelApp).CreateAddRewardReport(excelApp.ActiveWorkbook);
             }
             catch (Exception e)
             {
-                MessageBox.Show(ExcelWindow.Instance, $"Error catched, money report is discarded. {e}", "MoneyReport",
-                    MessageBoxButtons.OK,
+                UserDialogs.ShowMessage($"Помилка створення рапорту на ГЗ, рапорт не створено. {e}", "Рапорт на ГЗ",
                     MessageBoxIcon.Error);
-            }
-            finally
-            {
-                excelApp.StatusBar = false;
-                //excelApp.DisplayStatusBar = false;
             }
         }
 
@@ -305,15 +206,6 @@ namespace ZsuTools
                 UserDialogs.ShowMessage($"Помилка при завантаженні табеля залученості: {e}", "Табель залученості");
             }
         }
-
-
-        private void UpdateStatus(Application excelApp, string operationName)
-        {
-            excelApp.StatusBar = $"{operationName} {UpdateStates[_updateStateIndex++ % UpdateStates.Length]}";
-        }
-
-        private static readonly string[] UpdateStates = new[] { "-", "\\", "|", "/" };
-        private int _updateStateIndex = 0;
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Windows.Forms;
 using Application = Microsoft.Office.Interop.Excel.Application;
@@ -29,6 +30,27 @@ namespace ZsuTools.UI
                 }
 
                 fileName = openFileDialog.FileName;
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Показує діалог вибору папки (початково — «Документи»). Повертає false, якщо користувач скасував вибір.
+        /// </summary>
+        public static bool TryChooseFolder(string description, out string folderPath)
+        {
+            using (var folderDialog = new FolderBrowserDialog())
+            {
+                folderDialog.Description = description;
+                folderDialog.SelectedPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+                if (folderDialog.ShowDialog(ExcelWindow.Instance) != DialogResult.OK)
+                {
+                    folderPath = null;
+                    return false;
+                }
+
+                folderPath = folderDialog.SelectedPath;
                 return true;
             }
         }
