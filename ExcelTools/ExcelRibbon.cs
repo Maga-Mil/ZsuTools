@@ -1,15 +1,12 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using ExcelDna.Integration;
 using ExcelDna.Integration.CustomUI;
-using Xceed.Document.NET;
-using Xceed.Words.NET;
 using ZsuTools.Tables;
+using ZsuTools.UI;
+using ZsuTools.Workflows;
 using Application = Microsoft.Office.Interop.Excel.Application;
 
 namespace ZsuTools
@@ -34,15 +31,22 @@ namespace ZsuTools
 
             return new CustomUIBuilder()
                 .AddTab(tabId, tabLabel)
-                    .AddGroup("groupMain", "ЄЖООС")
-                        .AddButton("btnAddReward", "Рапорт на додаткову винагороду", "OnAddRewardClicked", "InternationalCurrency")
-                        .AddButton("btnPremReward", "Рапорт на премію", "OnPremRewardClicked", "InternationalCurrency")
-                    .AddGroup("groupStroyova", "Стройова")
-                        .AddButton("btnGetTabelFromStroyovaBatch", "Отримати табель зі Стройової Записки (пакетно)", "OnGetTabelFromStroyovaBatchClicked", "AccessListEvents")
-                        .AddButtonIf(isDebug, "btnGetTabelFromStroyova", "Отримати табель зі Стройової Записки", "OnGetTabelFromStroyovaClicked", "AccessListEvents")
-                    .AddGroup("tabelZaluchenosti", "Табель залученості")
-                        .AddButton("btnTabelZaluchenosti", "Читати Табель залученості", "OnGetTabelZaluchenostiClicked", "AccessListEvents")
-                        .AddButtonIf(isDebug, "btnTestTabelZaluchenosti", "Тест: порівняти COM і ClosedXML", "OnTestTabelZaluchenostiClicked", "AccessListEvents")
+                .AddGroup("groupMain", "ЄЖООС")
+                .AddButton("btnAddReward", "Рапорт на додаткову винагороду", "OnAddRewardClicked",
+                    "InternationalCurrency")
+                .AddButton("btnPremReward", "Рапорт на премію", "OnPremRewardClicked", "InternationalCurrency")
+                .AddGroup("groupStroyova", "Стройова")
+                .AddButton("btnGetTabelFromStroyovaBatch", "Отримати табель зі Стройової Записки (пакетно)",
+                    "OnGetTabelFromStroyovaBatchClicked", "AccessListEvents")
+                .AddButtonIf(isDebug, "btnGetTabelFromStroyova", "Отримати табель зі Стройової Записки",
+                    "OnGetTabelFromStroyovaClicked", "AccessListEvents")
+                .AddGroup("tabelZaluchenosti", "Табель залученості")
+                .AddButton("btnTabelZaluchenosti", "Оновити Табель Залученості", "OnGetTabelZaluchenostiClicked",
+                    "AccessListEvents", supertip: "Заповнити Табель Залученості зі Стройової Записки")
+                .AddButtonIf(isDebug, "btnTestTabelZaluchenosti", "Тест: порівняти COM і ClosedXML",
+                    "OnTestTabelZaluchenostiClicked", "AccessListEvents")
+                .AddButtonIf(isDebug, "btnTestSaveTabelZaluchenosti", "Тест: збереження Job/JobDetails",
+                    "OnTestSaveTabelZaluchenostiClicked", "AccessListEvents")
                 .Build();
         }
 
@@ -55,126 +59,34 @@ namespace ZsuTools
         /// <summary>
         /// Сгенерувати рапорт на премію у Word документі на основі таблиці ООС у активному ЄЖООС файлі.
         /// </summary>
-        /// <param name="control"></param>
         public void OnPremRewardClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
-            var workBook = excelApp.ActiveWorkbook;
-            foreach (Microsoft.Office.Interop.Excel.Worksheet workBookSheet in workBook.Sheets)
+            try
             {
-                if (OOSTable.IsOOSTable(workBookSheet))
-                {
-                    //Load ООС table
-                    var oosTable = new OOSTable(workBookSheet);
-
-                    //Open folder dialog
-                    using (FolderBrowserDialog folderDialog = new FolderBrowserDialog())
-                    {
-                        // Optional configuration
-                        folderDialog.Description = "Оберіть папку для збереження рапорту на премію";
-                        folderDialog.SelectedPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-
-                        // Show the dialog and check if the user clicked OK
-                        if (folderDialog.ShowDialog() == DialogResult.OK)
-                        {
-                            var selectedFolder = folderDialog.SelectedPath;
-                            
-                            //Create report base
-                            var reportPath = Path.Combine(selectedFolder, "рапорт_на_премію.docx");
-                            using (var document = DocX.Create(reportPath))
-                            {
-                                var defaultFont = new Font("Times New Roman");
-                                document.SetDefaultFont(defaultFont, 14);
-                                document.InsertParagraph("рапорт на премію");
-
-                                //Create table
-                                var table = document.AddTable(oosTable.Items.Count + 1, 7);
-                                //table.Design = Xceed.Words.NET.TableDesign.LightShadingAccent1;
-
-                                // Create autonumbered list for first column
-                                var numList = document.AddList(null, 0, ListItemType.Numbered, 1);
-                                for (int i = 0; i < oosTable.Items.Count; i++)
-                                {
-                                    document.AddListItem(numList,"");
-                                }
-                                
-                                //Add header
-                                table.Rows[0].Cells[0].Paragraphs[0].Append("№ п/п").FontSize(10);
-                                table.Rows[0].Cells[1].Paragraphs[0].Append("Військове звання").FontSize(10);
-                                table.Rows[0].Cells[2].Paragraphs[0].Append("Прізвище, ім’я,\nпо батькові").FontSize(10);
-                                table.Rows[0].Cells[3].Paragraphs[0].Append("Індекс посади").FontSize(10);
-                                table.Rows[0].Cells[4].Paragraphs[0].Append("РНОКПП").FontSize(10);
-                                table.Rows[0].Cells[5].Paragraphs[0].Append("Розмір премії").FontSize(10);
-                                table.Rows[0].Cells[6].Paragraphs[0].Append("Стягнення\n(ким, коли і за що накладено)").FontSize(10);
-
-                                //Add data
-                                for (int i = 0; i < oosTable.Items.Count; i++)
-                                {
-                                    var item = oosTable.Items[i];
-                                    var numberCell = table.Rows[i + 1].Cells[0];
-                                    numberCell.RemoveParagraphAt(0);
-                                    var listItem = numList.Items[i];
-                                    listItem.FontSize(10);
-                                    listItem.Append("").FontSize(10);
-                                    numberCell.InsertParagraph(listItem);
-                                    table.Rows[i + 1].Cells[1].Paragraphs[0].Append(item.Rank.RankName).FontSize(10);
-                                    table.Rows[i + 1].Cells[2].Paragraphs[0].Append(item.Person.ToString()).FontSize(10);
-                                    table.Rows[i + 1].Cells[3].Paragraphs[0]
-                                        .Append(item.Position.First().ToString() ?? "").FontSize(10);
-                                    table.Rows[i + 1].Cells[4].Paragraphs[0].Append(item.RNOKPP).FontSize(10);
-                                    table.Rows[i + 1].Cells[5].Paragraphs[0].Append("100%").FontSize(10);
-                                    table.Rows[i + 1].Cells[6].Paragraphs[0].Append("Відсутнє").FontSize(10);
-                                    
-                                }
-
-                                document.InsertTable(table);
-                                
-
-                                //Save document
-                                document.Save();
-                                
-                                Process.Start(new ProcessStartInfo(reportPath) { UseShellExecute = true });
-                            }
-                        }
-                    }
-
-
-                    return;
-                }
+                new MoneyReportWorkflow(excelApp).CreatePremReport(excelApp.ActiveWorkbook);
             }
-
-            MessageBox.Show(ExcelWindow.Instance, $"Не можу знайти таблицю ООС.", "ZSUTools", MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+            catch (Exception e)
+            {
+                UserDialogs.ShowMessage($"Помилка створення рапорту на премію: {e}", "Рапорт на премію",
+                    MessageBoxIcon.Error);
+            }
         }
 
         /// <summary>
         /// Сгенерувати рапорт на додаткову винагороду у Word документі на основі табеля у активному ЄЖООС файлі.
         /// </summary>
-        /// <param name="control"></param>
         public void OnAddRewardClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
             try
             {
-                var workBook = excelApp.ActiveWorkbook;
-                //excelApp.DisplayStatusBar = true;
-
-                void UpdateStatusFunc(String status)
-                {
-                    UpdateStatus(excelApp, status);
-                }
-
-                MoneyReportGenerator.CreateMoney_100_30_Report(workBook, UpdateStatusFunc);
+                new MoneyReportWorkflow(excelApp).CreateAddRewardReport(excelApp.ActiveWorkbook);
             }
             catch (Exception e)
             {
-                MessageBox.Show(ExcelWindow.Instance, $"Error catched, money report is discarded. {e}", "MoneyReport", MessageBoxButtons.OK,
+                UserDialogs.ShowMessage($"Помилка створення рапорту на ГЗ, рапорт не створено. {e}", "Рапорт на ГЗ",
                     MessageBoxIcon.Error);
-            }
-            finally
-            {
-                excelApp.StatusBar = false;
-                //excelApp.DisplayStatusBar = false;
             }
         }
 
@@ -218,7 +130,8 @@ namespace ZsuTools
             }
             catch (Exception e)
             {
-                MessageBox.Show(ExcelWindow.Instance, $"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
+                MessageBox.Show(ExcelWindow.Instance,
+                    $"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
                     "Стройова записка", MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
@@ -250,7 +163,8 @@ namespace ZsuTools
             }
             catch (Exception e)
             {
-                MessageBox.Show(ExcelWindow.Instance, $"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
+                MessageBox.Show(ExcelWindow.Instance,
+                    $"Виникла помилка, створення табеля зі Стройової записки перервано. {e}",
                     "Стройова записка", MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
@@ -270,100 +184,30 @@ namespace ZsuTools
         }
 
         /// <summary>
-        /// Тестове читання Табеля Залученості
-        /// TODO Заповнити Табель Залученості на основі Стройової Записки
+        /// Ручний тест: зміна Job/JobDetails, збереження через COM, перечитування і відновлення початкових значень.
         /// </summary>
-        /// <param name="control"></param>
+        public void OnTestSaveTabelZaluchenostiClicked(IRibbonControl control)
+        {
+            Tests.TabelZaluchenostiTests.SaveRoundTrip();
+        }
+
+        /// <summary>
+        /// Заповнює Залученість (Job) у Табелі Залученості активної книги на основі обраної Стройової Записки.
+        /// </summary>
         public void OnGetTabelZaluchenostiClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
             try
             {
-                var workBook = excelApp.ActiveWorkbook;
-                if(workBook == null)
-                {
-                    MessageBox.Show(ExcelWindow.Instance, "Не завантажено Табель Залученості.", "Табель залученості");
-                    return;
-                }
-                var ws = ExcelUtils.FindWorksheetByNameContains(workBook, "Табелювання");
-                if(ws == null)
-                {
-                    MessageBox.Show(ExcelWindow.Instance, "Не знайдено таблицю 'Табелювання', це не схоже на Табель Залученості", "Табель залученості");
-                    return;
-                }
-                var tz = new TabelZaluchenosti(workBook);
-
-                using (OpenFileDialog openFileDialog = new OpenFileDialog())
-                {
-                    openFileDialog.Filter = "Файли Excel (*.xlsx)|*.xlsx|Усі файли (*.*)|*.*";
-                    openFileDialog.Title = "Оберіть Стройову Записку, щоб скопіювати дані до Табеля Залученості";
-
-                    if (openFileDialog.ShowDialog() != DialogResult.OK)
-                    {
-                        return;
-                    }
-
-                    string selectedFilePath = openFileDialog.FileName;
-                    string directory = Path.GetDirectoryName(selectedFilePath);
-                    string fileName = Path.GetFileName(selectedFilePath);
-                    
-                    var szWb = excelApp.Workbooks.Open(selectedFilePath, ReadOnly: true);
-
-                    try
-                    {
-                        var sz = new StroyovaZapyska(szWb);
-
-                        // Some sanity checks
-                        if(tz.Items.Count != sz.Items.Count)
-                        {
-                            MessageBox.Show(ExcelWindow.Instance, $"Кількість записів у Табелі Залученості ({tz.Items.Count}) не збігається з кількістю записів у Стройовій Записці ({sz.Items.Count}). Операця буде зупинена.", "Табель залученості");
-                            return;
-                        }
-                        
-                        var mismatchedRecords = new List<string>();
-                        foreach (var tzItem in tz.Items)
-                        {
-                            var person = sz.Items.SingleOrDefault(r => r.Person.FullName.Equals(tzItem.PersonFullName, StringComparison.InvariantCultureIgnoreCase));
-                            if(person == null)
-                            {
-                                mismatchedRecords.Add(tzItem.PersonFullName);
-                            }
-                        }
-                        
-                        if(mismatchedRecords.Count > 0)
-                        {
-                            MessageBox.Show(ExcelWindow.Instance, $"У Табелі Залученості присутні записи, які відсутні у Стройовій Записці:\n\r {String.Join(", ", mismatchedRecords)}. \n\rТреба виправити ПІБ у Стройовій Записці відповідно до Табеля Залученості. Операця буде зупинена.", "Табель залученості");
-                            return;
-                        }
-                    }
-                    finally
-                    {
-                        szWb.Close(false);
-                    }
-                    
-                }
-
-                MessageBox.Show(ExcelWindow.Instance, $"Successfully parsed {tz.Items.Count} records!", "Табель залученості");
-                
+                new TabelZaluchenostiWorkflow(excelApp).FillJobsFromStroyova(excelApp.ActiveWorkbook);
             }
             catch (Exception e)
             {
-                MessageBox.Show(ExcelWindow.Instance, $"Помилка при завантаженні табеля залученості: {e}", "Табель залученості");
+                UserDialogs.ShowMessage($"Помилка при завантаженні табеля залученості: {e}", "Табель залученості");
             }
-            
         }
-            
-            
-
-        private void UpdateStatus(Application excelApp, string operationName)
-        {
-            excelApp.StatusBar = $"{operationName} {UpdateStates[_updateStateIndex++ % UpdateStates.Length]}";
-        }
-
-        private static readonly string[] UpdateStates = new[] { "-", "\\", "|", "/" };
-        private int _updateStateIndex = 0;
     }
-    
+
     /// <summary>
     /// Wraps Excel's main HWND handle into an IWin32Window implementation
     /// so WinForms dialogs and MessageBoxes bind correctly as modal windows to Excel.

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using ExcelDna.Integration;
@@ -98,6 +99,75 @@ namespace ZsuTools.Tests
 
             MessageBox.Show(report.ToString(), "Тест Табеля Залученості", MessageBoxButtons.OK,
                 differences.Count == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+        }
+
+        /// <summary>
+        /// Змінює JobDetails першого запису і Job другого запису активної книги, зберігає через COM,
+        /// перечитує й перевіряє результат, після чого повертає початкові значення. Підсумок — у MessageBox.
+        /// </summary>
+        public static void SaveRoundTrip()
+        {
+            const string caption = "Тест збереження Табеля Залученості";
+
+            var excelApp = (Microsoft.Office.Interop.Excel.Application)ExcelDnaUtil.Application;
+            var workbook = excelApp.ActiveWorkbook;
+            if (workbook == null)
+            {
+                MessageBox.Show("Немає відкритої книги. Відкрийте Табель Залученості в Excel.", caption);
+                return;
+            }
+
+            var report = new StringBuilder();
+            try
+            {
+                var tabel = new TabelZaluchenosti(workbook);
+                if (tabel.Items.Count < 2)
+                {
+                    MessageBox.Show("Для тесту потрібно щонайменше 2 записи.", caption);
+                    return;
+                }
+
+                var first = tabel.Items[0];
+                var second = tabel.Items[1];
+                string originalDetails = first.JobDetails;
+                var originalJob = second.Job;
+
+                // Читання обрізає пробіли (ParseString → Trim), тож значення без пробілів на краях
+                string newDetails = (originalDetails + " [тест]").Trim();
+                var newJob = tabel.Jobs.AllValues.First(j =>
+                    !ReferenceEquals(j, TabelZaluchenosti.JobValue.Unknown) && j.Code != originalJob?.Code);
+
+                if (tabel.HasChanges)
+                {
+                    report.AppendLine("ПОМИЛКА: HasChanges = true одразу після читання.");
+                }
+
+                first.JobDetails = newDetails;
+                second.Job = newJob;
+
+                int written = tabel.Save();
+                report.AppendLine($"Save(): записано комірок {written} (очікується 2).");
+                report.AppendLine($"Повторний Save(): {tabel.Save()} (очікується 0).");
+
+                var reread = new TabelZaluchenosti(workbook);
+                report.AppendLine(reread.Items[0].JobDetails == newDetails
+                    ? "JobDetails записано правильно."
+                    : $"ПОМИЛКА JobDetails: '{reread.Items[0].JobDetails}' замість '{newDetails}'.");
+                report.AppendLine(reread.Items[1].Job.Code == newJob.Code
+                    ? "Job записано правильно."
+                    : $"ПОМИЛКА Job: '{reread.Items[1].Job}' замість '{newJob}'.");
+
+                // Повертаємо початкові значення
+                first.JobDetails = originalDetails;
+                second.Job = originalJob;
+                report.AppendLine($"Відновлення: записано комірок {tabel.Save()}.");
+            }
+            catch (Exception ex)
+            {
+                report.AppendLine($"Виняток: {ex.Message}");
+            }
+
+            MessageBox.Show(report.ToString(), caption);
         }
 
         /// <summary>

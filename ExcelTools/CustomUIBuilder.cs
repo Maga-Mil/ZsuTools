@@ -38,19 +38,27 @@ namespace ZsuTools
             return this;
         }
 
+        // supertip — текст підказки при наведенні; заголовком підказки (screentip) буде label
         public CustomUIBuilder AddButton(string id, string label, string onAction, string imageMso,
-            bool large = true)
+            bool large = true, string supertip = null)
         {
             if (_currentGroup == null)
                 throw new InvalidOperationException("Спочатку викличте AddGroup().");
 
-            _currentGroup.Add(new XElement(Ns + "button",
+            var button = new XElement(Ns + "button",
                 new XAttribute("id", id),
                 new XAttribute("label", label),
                 new XAttribute("size", large ? "large" : "normal"),
                 new XAttribute("imageMso", imageMso),
                 new XAttribute("showImage", "true"),
-                new XAttribute("onAction", onAction)));
+                new XAttribute("onAction", onAction));
+
+            if (!string.IsNullOrEmpty(supertip))
+            {
+                button.Add(new XAttribute("screentip", label), new XAttribute("supertip", supertip));
+            }
+
+            _currentGroup.Add(button);
             return this;
         }
 
@@ -59,9 +67,9 @@ namespace ZsuTools
         /// Зручно для #if-подібних умов без розриву ланцюжка викликів.
         /// </summary>
         public CustomUIBuilder AddButtonIf(bool condition, string id, string label, string onAction,
-            string imageMso, bool large = true)
+            string imageMso, bool large = true, string supertip = null)
         {
-            return condition ? AddButton(id, label, onAction, imageMso, large) : this;
+            return condition ? AddButton(id, label, onAction, imageMso, large, supertip) : this;
         }
 
         public string Build()
