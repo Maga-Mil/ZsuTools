@@ -137,7 +137,9 @@
     <Compile Include="UDFs\CheckCellFunctions.cs" />
     <Compile Include="UDFs\StringFunctions.cs" />
     <Compile Include="UDFs\TestUDF.cs" />
+    <Compile Include="UI\UserDialogs.cs" />
     <Compile Include="Utils.cs" />
+    <Compile Include="Workflows\TabelZaluchenostiWorkflow.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

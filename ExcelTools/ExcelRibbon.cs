@@ -1,16 +1,16 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Windows.Forms;
 using ExcelDna.Integration;
 using ExcelDna.Integration.CustomUI;
 using Xceed.Document.NET;
 using Xceed.Words.NET;
 using ZsuTools.Tables;
+using ZsuTools.UI;
+using ZsuTools.Workflows;
 using Application = Microsoft.Office.Interop.Excel.Application;
 
 namespace ZsuTools
@@ -291,238 +291,18 @@ namespace ZsuTools
         }
 
         /// <summary>
-        /// Заповнює Залученість (Job) у Табелі Залученості активної книги на основі обраної Стройової Записки:
-        /// БЧ → BATTALION_DEFENSE_SECTOR, РЗ → COMBAT_SUPPORT. Відсутніх не змінює.
+        /// Заповнює Залученість (Job) у Табелі Залученості активної книги на основі обраної Стройової Записки.
         /// </summary>
         public void OnGetTabelZaluchenostiClicked(IRibbonControl control)
         {
             Application excelApp = (Application)ExcelDnaUtil.Application;
             try
             {
-                var workBook = excelApp.ActiveWorkbook;
-                if (workBook == null)
-                {
-                    MessageBox.Show(ExcelWindow.Instance, "Не завантажено Табель Залученості.", "Табель залученості");
-                    return;
-                }
-
-                var ws = ExcelUtils.FindWorksheetByNameContains(workBook, "Табелювання");
-                if (ws == null)
-                {
-                    MessageBox.Show(ExcelWindow.Instance,
-                        "Не знайдено таблицю 'Табелювання', це не схоже на Табель Залученості", "Табель залученості");
-                    return;
-                }
-
-                var tz = new TabelZaluchenosti(workBook);
-
-                using (OpenFileDialog openFileDialog = new OpenFileDialog())
-                {
-                    openFileDialog.Filter = "Файли Excel (*.xlsx)|*.xlsx|Усі файли (*.*)|*.*";
-                    openFileDialog.Title = "Оберіть Стройову Записку, щоб скопіювати дані до Табеля Залученості";
-
-                    if (openFileDialog.ShowDialog() != DialogResult.OK)
-                    {
-                        return;
-                    }
-
-                    string selectedFilePath = openFileDialog.FileName;
-
-                    StroyovaZapyska sz;
-                    var szWb = excelApp.Workbooks.Open(selectedFilePath, ReadOnly: true);
-                    try
-                    {
-                        sz = new StroyovaZapyska(szWb);
-                    }
-                    finally
-                    {
-                        szWb.Close(false);
-                    }
-
-                    // Табель міг перестати бути активною книгою, поки відкривалася Стройова
-                    workBook.Activate();
-
-                    // Some sanity checks
-                    if (tz.Items.Count != sz.Items.Count)
-                    {
-                        MessageBox.Show(ExcelWindow.Instance,
-                            $"Кількість записів у Табелі Залученості ({tz.Items.Count}) не збігається з кількістю записів у Стройовій Записці ({sz.Items.Count}). Операця буде зупинена.",
-                            "Табель залученості");
-                        return;
-                    }
-
-                    var mismatchedRecords = new List<string>();
-                    foreach (var tzItem in tz.Items)
-                    {
-                        var person = sz.Items.SingleOrDefault(r =>
-                            r.Person.FullName.Equals(tzItem.PersonFullName,
-                                StringComparison.InvariantCultureIgnoreCase));
-                        if (person == null)
-                        {
-                            mismatchedRecords.Add(tzItem.PersonFullName);
-                        }
-                    }
-
-                    if (mismatchedRecords.Count > 0)
-                    {
-                        MessageBox.Show(ExcelWindow.Instance,
-                            $"У Табелі Залученості присутні записи, які відсутні у Стройовій Записці:\n\r {String.Join(", ", mismatchedRecords)}. \n\rТреба виправити ПІБ у Стройовій Записці відповідно до Табеля Залученості. Операця буде зупинена.",
-                            "Табель залученості");
-                        return;
-                    }
-
-                    // Для кожної особи зі Стройової знаходимо відповідну особу в Табелі (за ПІБ)
-                    var tzByName = tz.Items.ToLookup(i => i.PersonFullName, StringComparer.InvariantCultureIgnoreCase);
-                    var notFound = new List<string>();
-                    var ambiguous = new List<string>();
-                    var unknownLocations = new List<string>();
-                    var missingJobValues = new List<string>();
-                    var assignments = new List<KeyValuePair<TabelZaluchenosti.Item, TabelZaluchenosti.JobValue>>();
-
-                    foreach (var szItem in sz.Items)
-                    {
-                        var job = LocationToJob(szItem.State, tz.Jobs, out string jobKey);
-                        if (job == null)
-                        {
-                            unknownLocations.Add($"{szItem.Person.FullName} — «{szItem.State.LocationName}»");
-                            continue;
-                        }
-
-                        if (ReferenceEquals(job, TabelZaluchenosti.JobValue.Unknown))
-                        {
-                            // Значення Залученості відсутнє у довіднику InvVal Табеля
-                            if (!missingJobValues.Contains(jobKey))
-                            {
-                                missingJobValues.Add(jobKey);
-                            }
-
-                            continue;
-                        }
-
-                        var matches = tzByName[szItem.Person.FullName].ToList();
-                        if (matches.Count == 0)
-                        {
-                            notFound.Add(szItem.Person.FullName);
-                        }
-                        else if (matches.Count > 1)
-                        {
-                            ambiguous.Add(szItem.Person.FullName);
-                        }
-                        else
-                        {
-                            assignments.Add(new KeyValuePair<TabelZaluchenosti.Item, TabelZaluchenosti.JobValue>(
-                                matches[0], job));
-                        }
-                    }
-
-                    if (notFound.Count > 0 || ambiguous.Count > 0 || unknownLocations.Count > 0 ||
-                        missingJobValues.Count > 0)
-                    {
-                        var message = new StringBuilder();
-                        if (unknownLocations.Count > 0)
-                        {
-                            message.AppendLine(
-                                $"Невідоме місцезнаходження у Стройовій Записці (виправте Стройову Записку):\n{string.Join("\n", unknownLocations)}\n");
-                        }
-
-                        if (missingJobValues.Count > 0)
-                        {
-                            message.AppendLine(
-                                $"У довіднику Залученості (InvVal) Табеля відсутні значення:\n{string.Join(", ", missingJobValues)}\n");
-                        }
-
-                        if (notFound.Count > 0)
-                        {
-                            message.AppendLine(
-                                $"Особи зі Стройової Записки, яких не знайдено у Табелі Залученості:\n{string.Join(", ", notFound)}\n");
-                        }
-
-                        if (ambiguous.Count > 0)
-                        {
-                            message.AppendLine(
-                                $"ПІБ, які зустрічаються у Табелі Залученості кілька разів:\n{string.Join(", ", ambiguous)}\n");
-                        }
-
-                        message.Append("Операція буде зупинена, Табель Залученості не змінено.");
-                        MessageBox.Show(ExcelWindow.Instance, message.ToString(), "Табель залученості");
-                        return;
-                    }
-
-                    foreach (var assignment in assignments)
-                    {
-                        assignment.Key.Job = assignment.Value;
-                    }
-
-                    int written = tz.Save();
-
-                    var result = new StringBuilder();
-                    result.AppendLine($"Залученість заповнено зі Стройової Записки на {sz.Date:dd.MM.yyyy}.");
-                    result.AppendLine($"Оброблено осіб: {assignments.Count}, змінено комірок: {written}.");
-
-                    var warnings = tz.GetPresenceJobWarnings();
-                    if (warnings.Count > 0)
-                    {
-                        result.AppendLine();
-                        result.AppendLine(
-                            $"Увага! Наявність не узгоджується із Залученістю ({warnings.Count}), перевірте:");
-                        foreach (var warning in warnings)
-                        {
-                            result.AppendLine(warning);
-                        }
-                    }
-
-                    MessageBox.Show(ExcelWindow.Instance, result.ToString(), "Табель залученості",
-                        MessageBoxButtons.OK,
-                        warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
-                }
+                new TabelZaluchenostiWorkflow(excelApp).FillJobsFromStroyova(excelApp.ActiveWorkbook);
             }
             catch (Exception e)
             {
-                MessageBox.Show(ExcelWindow.Instance, $"Помилка при завантаженні табеля залученості: {e}",
-                    "Табель залученості");
-            }
-        }
-
-        /// <summary>
-        /// Відповідність місцезнаходження зі Стройової Записки значенню Залученості Табеля.
-        /// Повертає null, якщо місцезнаходження невідоме (треба виправити Стройову Записку).
-        /// У jobKey — код значення Залученості (для повідомлення, якщо його немає у довіднику InvVal).
-        /// </summary>
-        private static TabelZaluchenosti.JobValue LocationToJob(StroyovaZapyska.Place place,
-            TabelZaluchenosti.JobValue.Registry jobs, out string jobKey)
-        {
-            switch (place.Location)
-            {
-                case StroyovaZapyska.LocationType.БЧ:
-                    jobKey = nameof(jobs.BATTALION_DEFENSE_SECTOR);
-                    return jobs.BATTALION_DEFENSE_SECTOR;
-                case StroyovaZapyska.LocationType.РЗ:
-                    jobKey = nameof(jobs.COMBAT_SUPPORT);
-                    return jobs.COMBAT_SUPPORT;
-            }
-
-            switch ((place.LocationName ?? string.Empty).Trim())
-            {
-                case "Відрядження":
-                    jobKey = nameof(jobs.TRIP);
-                    return jobs.TRIP;
-                case "Відпустка щорічна":
-                case "Відпустка ЗСО":
-                case "Відпустка ЗСЗ":
-                    jobKey = nameof(jobs.VACATION);
-                    return jobs.VACATION;
-                case "СЗЧ":
-                    jobKey = nameof(jobs.AWOL);
-                    return jobs.AWOL;
-                case "Лікування (до 10 діб)":
-                    jobKey = nameof(jobs.SHORT_TERM_TREATMENT);
-                    return jobs.SHORT_TERM_TREATMENT;
-                case "Лікування довготривале":
-                    jobKey = nameof(jobs.LONG_TERM_TREATMENT);
-                    return jobs.LONG_TERM_TREATMENT;
-                default:
-                    jobKey = null;
-                    return null;
+                UserDialogs.ShowMessage($"Помилка при завантаженні табеля залученості: {e}", "Табель залученості");
             }
         }
 

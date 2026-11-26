@@ -112,58 +112,6 @@ namespace ZsuTools.Tables
         public bool HasChanges => GetChanges().Count > 0;
 
         /// <summary>
-        /// Перевіряє узгодженість Наявності (Presence) і Залученості (Job) для всіх записів:
-        /// PRESENT → BATTALION_DEFENSE_SECTOR або COMBAT_SUPPORT; відпустки (VACATION_*) → VACATION;
-        /// відрядження (TRIP_*) → TRIP; AWOL → AWOL.
-        /// Порушення — не помилка, а попередження: повертає їх текстовий перелік (порожній, якщо все узгоджено).
-        /// </summary>
-        public List<string> GetPresenceJobWarnings()
-        {
-            var warnings = new List<string>();
-
-            foreach (var item in items)
-            {
-                var presence = item.Presence;
-                var job = item.Job ?? JobValue.Empty;
-                JobValue[] allowedJobs;
-
-                if (ReferenceEquals(presence, Presence.PRESENT))
-                {
-                    allowedJobs = new[] { Jobs.BATTALION_DEFENSE_SECTOR, Jobs.COMBAT_SUPPORT };
-                }
-                else if (ReferenceEquals(presence, Presence.VACATION_ANNUAL) ||
-                         ReferenceEquals(presence, Presence.VACATION_FAMILY_REASONS) ||
-                         ReferenceEquals(presence, Presence.VACATION_MEDICAL) ||
-                         ReferenceEquals(presence, Presence.VACATION_MEDICAL_SICK))
-                {
-                    allowedJobs = new[] { Jobs.VACATION };
-                }
-                else if (ReferenceEquals(presence, Presence.TRIP_FOR_PERIOD) ||
-                         ReferenceEquals(presence, Presence.TRIP_UNTIL_DIRECTIVE) ||
-                         ReferenceEquals(presence, Presence.TRIP_FOR_EDUCATION))
-                {
-                    allowedJobs = new[] { Jobs.TRIP };
-                }
-                else if (ReferenceEquals(presence, Presence.AWOL))
-                {
-                    allowedJobs = new[] { Jobs.AWOL };
-                }
-                else
-                {
-                    continue; // Для інших значень Наявності правил поки немає
-                }
-
-                if (!allowedJobs.Contains(job))
-                {
-                    string jobText = string.IsNullOrEmpty(job.Value) ? "(порожньо)" : job.Value;
-                    warnings.Add($"{item.PersonFullName}: Наявність «{presence.Value}», Залученість «{jobText}»");
-                }
-            }
-
-            return warnings;
-        }
-
-        /// <summary>
         /// Записує у аркуш «Табелювання» відкритої книги лише ті комірки Job / JobDetails, що змінилися.
         /// Книга на диск не зберігається.
         /// </summary>
